@@ -1,6 +1,10 @@
 # Raga
 
-The Raga programming language: its design is written as runnable-looking templates.
+A design of the Raga programming language, built around one consistent philosophy: every construct is the same binding shape.
+
+**This repository is a language design, not an implementation.** There is no compiler or interpreter here. The design is written
+as templates in Raga syntax so that it can be read, checked for consistency and discussed. When a template says what a line does
+or prints, that is the intended meaning of the language, not the output of a program that was run.
 
 - `hello.raga` is the quick start, read it top to bottom.
 - `templates/` explains each area in full, in the order to read them:

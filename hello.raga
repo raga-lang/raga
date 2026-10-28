@@ -1,4 +1,5 @@
 // Raga quick start. Read it top to bottom, the templates/ folder explains each part in full.
+// Raga is a language design: this file shows the intended meaning of each line, there is no compiler that runs it.
 // A line comment runs from // to the end of the line. There are no block comments.
 
 
