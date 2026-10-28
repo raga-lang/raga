@@ -1,0 +1,363 @@
+// Errors: Optional and Result for expected failures, throw / try / catch / finally for the unexpected
+// Run-time errors, the Error type, cleanup, and when to use which
+//
+// Raga has two ways to deal with something going wrong:
+//   - A function that can fail in a normal way says so in its return type: Optional<T> or Result<T, E>.
+//     The caller must look at the result, the compiler does not let it forget.
+//   - A failure that should not happen (a bug, a broken input, a missing file) is an error that is thrown.
+//     It leaves the code that threw it and any function around it until a catch handles it, or the program ends.
+
+
+// ============================================================
+// 1. OPTIONAL: A VALUE OR NOTHING
+// ============================================================
+
+// Optional<T> is a tagged union that comes with the language, see 05-structs-enums-unions.
+//   Some holds a value     Optional.Some(5)     the value is in the field `value`
+//   None holds nothing     Optional.None
+// Use it when "not found" or "not there" is a normal answer and needs no explanation.
+// There is no null: a value that may be absent is always an Optional.
+
+const find_index = function(List<i32> items, i32 target) Optional<usize> {
+    for (items) |item, index| {
+        if (item == target) { return Optional.Some(index) }
+    }
+    return Optional.None
+}
+
+// The result is read with match, every variant must be handled.
+const numbers = [4, 8, 15]
+let where = "not found"
+match (find_index(numbers, 8)) {
+    case (Some) |s| { where = "found" }
+    case (None)     { }
+}
+
+// A value is never used by mistake: there is no s.value outside the Some case.
+// const idx = find_index(numbers, 8).value      // ERROR: an Optional has no value until it is matched
+
+// The built-in collections never give an Optional. Reading something that is not there throws an Error (section 5),
+// so check first with len or has when "not there" is possible.
+
+
+// ============================================================
+// 2. RESULT: A VALUE OR A REASON
+// ============================================================
+
+// Result<T, E> is a tagged union too.
+//   Ok holds the value, in the field `value`
+//   Err holds the reason, in the field `reason`
+// Use it when the caller needs to know why something failed. E is often a String or an enum.
+// It is made like an Optional: Result.Ok(value) and Result.Err(reason), with the types taken from the context,
+// here the return type of the function (see 05-structs-enums-unions).
+
+const divide = function(i32 top, i32 bottom) Result<i32, String> {
+    if (bottom == 0) { return Result.Err("divide by zero") }
+    return Result.Ok(top / bottom)
+}
+
+let outcome = 0
+let failure = ""
+match (divide(10, 2)) {
+    case (Ok)  |ok|  { outcome = ok.value }         // 5
+    case (Err) |bad| { failure = bad.reason }
+}
+
+// An enum as the reason lets callers match on it.
+const ParseError = enum { const Empty = 0; const NotANumber = 1; const TooBig = 2 }
+const parse_age = function(String text) Result<i32, ParseError> {
+    if (text.len() == 0) { return Result.Err(ParseError.Empty) }
+    return Result.Ok(30)
+}
+
+// A function that calls another Result function passes the failure on by matching and returning it.
+const half_of = function(i32 top, i32 bottom) Result<i32, String> {
+    match (divide(top, bottom)) {
+        case (Ok)  |ok|  { return Result.Ok(ok.value / 2) }
+        case (Err) |bad| { return Result.Err(bad.reason) }
+    }
+}
+
+// A failure does not have to be read with a match every time. Optional and Result have helpers, and each one fits a
+// different case, so use the one that says what you mean.
+//
+// 1. Give up: the failure ends the work. or_throw() gives the value, or throws the failure as an error that a try further up
+//    can catch (section 4). For an Err the reason becomes the message of the Error, and for a None the message says there was
+//    no value. unwrap() does the same, and or_throw says it more clearly.
+const tenth = divide(10, 2).or_throw()           // 5: an Err would throw an Error here
+const first_where = find_index(numbers, 8).or_throw()     // 1
+
+// 2. A fallback value, written in place: unwrapOr(fallback).
+const safe = divide(10, 0).unwrapOr(-1)         // -1: the fallback is used when the result is an Err
+
+// 3. Handle it right there: or_else takes a block that runs only on a failure and gives the replacement value. The block
+//    of a Result gets the reason, and the block of an Optional gets nothing. return gives the value back to or_else.
+const rescued = divide(10, 0).or_else |reason| {
+    if (reason.contains("zero")) { return 0 }   // the block can look at the reason before it chooses the value
+    return -1
+}
+const found_or_zero = find_index(numbers, 99).or_else {
+    return 0                                    // None: no reason to look at
+}
+// A return in the block leaves the block, as in every callback (04-functions section 10), so a block cannot return from
+// the function around it. To pass a failure on to your own caller, use or_throw, or return the Result itself.
+
+
+// ============================================================
+// 3. THE ERROR TYPE AND THROW
+// ============================================================
+
+// Error is a class that comes with the language, and it implements the interface IError, which lists the two things every
+// error has:
+//   String message
+//   i32 code
+// Error(message = ..., code = ...) creates an error like any class is created: a field that is left out takes its value,
+// "" for the message and 0 for the code. A class of your own that implements IError is an error of its own kind and can be
+// thrown too, see 07-classes-and-traits section 15. A struct has no implements, so only a class can do this.
+// throw(value) stops the code that is running and raises the error. Only an Error, or an object of a class that
+// implements IError, can be thrown.
+const check_age = function(i32 age) {
+    if (age < 0) { throw(Error(message = "age cannot be negative", code = 1)) }
+    if (age > 150) { throw(Error(message = "age is too large", code = 2)) }
+}
+
+// throw leaves the function at once, like return, and keeps leaving every function around it
+// until a catch handles it (section 4).
+// There is no declaration of what a function can throw, any function may throw.
+// throw("x")                           // ERROR: only an Error can be thrown
+// throw(Error)                                 // ERROR: write the error value, Error(message = ...)
+
+
+// ============================================================
+// 4. TRY, CATCH, FINALLY
+// ============================================================
+
+// try runs a block. If an error is thrown inside it, the block stops and the catch block runs.
+// try and finally read no value, so they have no parentheses, like else in an if. catch names the error it receives
+// between pipes.
+// |e| is the error as an IError, fixed inside the catch block: message and code are always there, and an Error or an error
+// class of your own can be told apart with e.is<T>() and e.as<T>() (07-classes-and-traits section 15).
+let checked = "ok"
+try {
+    check_age(200)
+    checked = "not reached"                // skipped: the error left the try block
+} catch |e| {
+    checked = e.message                            // "age is too large"
+}
+
+// When nothing is thrown, the catch block does not run.
+try {
+    check_age(30)
+    checked = "fine"
+} catch |e| {
+    checked = "bad"
+}
+
+// finally runs after the try and the catch, whatever happened, even on return, break or continue.
+// Use it for cleanup that must always happen.
+let steps = 0
+try {
+    steps = steps + 1
+    check_age(-5)
+} catch |e| {
+    steps = steps + 10
+} finally {
+    steps = steps + 100                            // 111 at the end
+}
+
+// A catch can be left out when there is a finally. The error keeps going after the finally has run.
+// try { check_age(-5) } finally { steps = 0 }
+
+// A catch can look at the Error and decide. It can throw again to pass the error on.
+try {
+    check_age(-1)
+} catch |e| {
+    if (e.code == 1) {
+        steps = 0                                  // handled here
+    } else {
+        throw(e)                                   // not ours, pass it on
+    }
+}
+
+// Names declared inside try are not visible in catch or finally, and the other way round.
+// try { const inside = 1 } catch |e| { print(inside) }    // ERROR: inside is not declared here
+
+// The error thrown by a function is caught by the try around the call, however deep it was thrown.
+const outer = function(i32 age) {
+    check_age(age)                                  // a throw in here leaves outer too
+}
+try {
+    outer(-9)
+} catch |e| {
+    steps = e.code
+}
+
+// A try and catch can sit inside a loop. continue and break work as usual.
+let valid = 0
+for ([10, -1, 20, 200]) |age| {
+    try {
+        check_age(age)
+        valid = valid + 1
+    } catch |e| {
+        continue                                   // skip the bad ones
+    }
+}
+// valid is 2
+
+// return inside try returns from the function. finally still runs first.
+const lookup = function(i32 age) String {
+    try {
+        check_age(age)
+        return "valid"
+    } catch |e| {
+        return e.message
+    } finally {
+        print("checked")                   // runs on both paths
+    }
+}
+// return inside a finally block is an error, it would hide the error or the value being returned.
+
+
+// A function can wrap try and catch for you. It takes the handler as an argument and the work as its block
+// (callbacks are in 04-functions): the block runs inside the try, and the handler gets the message of the Error.
+const log_message = function(String message) {
+    print(message)
+}
+const guarded = function(function(String message) on_fail, function() action) {
+    try {
+        action()
+    } catch |e| {
+        on_fail(e.message)
+    }
+}
+guarded(on_fail = log_message) {
+    check_age(-1)                                  // the Error is caught inside guarded, log_message shows its message
+}
+
+
+// ============================================================
+// 5. ERRORS THE LANGUAGE THROWS
+// ============================================================
+
+// These stop the code and throw an Error. Each can be caught like one of your own.
+//   List.pop() or shift() on an empty List: check len first
+//   Array.get / set, List.get / set with a position that does not exist: check len first (a Tuple position is checked
+//   when the program is built, see 02-data-structures)
+//   Map.get with a key that is not in the Map: check has first
+//   i32("abc"), f64("x"): a String that is not a number
+//   Color(7) for an enum value that does not exist
+//   range(0, 10, 0): a step of 0
+//   p.* on a null pointer (08-memory)
+//   a List or Set changing size while a for loop goes over it
+//   running out of memory: alloc, or a collection that cannot grow (08-memory)
+//
+// A stack overflow from a function that never stops is not on this list: it ends the program and cannot be caught.
+//
+// The Error they throw has a message that says what happened and a non-zero code.
+// An integer divided by zero and a signed overflow are not on this list: they are undefined, as in C.
+
+const risky = List<i32>()
+try {
+    risky.pop()                                    // the List is empty
+} catch |e| {
+    checked = e.message
+}
+
+// Most of these can be avoided by checking first, which is better than catching.
+if (risky.len() > 0) { risky.pop() }
+
+// unwrap throws when there is nothing to unwrap, so it is for cases where a failure would be a bug.
+// Optional.None.unwrap()                          // throws an Error
+// Result<i32, String>.Err("x").unwrap()   // throws an Error with the reason as the message
+
+
+// ============================================================
+// 6. AN ERROR THAT IS NOT CAUGHT
+// ============================================================
+
+// If no catch handles an error, the program stops. It prints the message of the Error and ends with
+// the code of the Error as its exit status, or 1 when the code is 0.
+// Code that runs after a throw, in the functions it passed through, does not run, except finally blocks.
+//
+//   check_age(-1)           // no try around it: the program stops here, the lines below never run
+//
+// The program also prints the call stack of the error, one line for each function that was running when it was thrown, the
+// innermost first. The same text is available in code, see System.trace in section 8.
+//
+// What the terminal shows when check_age(-1) is not caught, and the exit status that follows:
+//   age cannot be negative
+//     at check_age (06-errors.raga:96)
+//   exit status 1                      (the code of this Error is 1; a code of 0 would also give 1)
+// An error of your own with code = 404 (07-classes-and-traits section 15) ends the program with exit status 404.
+// The lines after the throw, in check_age and in the code that called it, never ran. A finally block on the way did run.
+
+
+// ============================================================
+// 7. CHOOSING BETWEEN THEM
+// ============================================================
+
+// Use Optional<T> when the answer "nothing" is normal and needs no reason:
+//   look something up in your own code, such as the position of a value (the collections themselves throw, see section 5).
+// Use Result<T, E> when the caller should know why and decide what to do:
+//   parse a number, divide, validate input, call something that can be refused.
+// Use throw when going on makes no sense and a failure means a bug or a broken state:
+//   a position that must exist, a precondition that was broken, a resource that cannot be opened.
+// Use try, catch and finally to handle a thrown error at the place that knows what to do about it,
+// and finally for cleanup that must always run.
+//
+// Do not use throw for normal control flow: a missing item is an Optional, not an error.
+// Do not catch an error just to ignore it: an empty catch block hides bugs.
+// Prefer checking first (has, len) over catching an error you can predict.
+
+
+// ============================================================
+// 8. THE SYSTEM: EXIT, ARGUMENTS, FILES, TIME, RANDOM NUMBERS AND TRACES
+// ============================================================
+
+// These are static methods of the built-in types System, File, Time and Random, called with the name of the type.
+// What can fail in an ordinary way, such as a missing file or variable, gives a Result and does not throw.
+
+// System.exit(code) ends the program at once with that exit status. Nothing after it runs, and a finally block does not run.
+// Status 0 means success, as when the last line is reached. System.args() gives the words after the program name.
+const fail_with = function(String message) {
+    print(message)
+    System.exit(1)
+}
+const arguments = System.args()                    // Array<String>
+if (arguments.len() > 1000) { fail_with("too many arguments") }
+
+// System.env(name) gives the value of an environment variable, or the reason there is none.
+const home = System.env("HOME")                    // Result<String, String>
+
+// File.read(path) gives a Result: Ok with the text of the file, or Err with the reason, such as a missing file.
+const notes = File.read("notes.txt")               // Result<String, String>
+let notes_text = ""
+match (notes) {
+    case (Ok)  |ok|  { notes_text = ok.value }
+    case (Err) |bad| { notes_text = bad.reason }
+}
+// File.write replaces the file, File.append adds at the end, and both give Ok(true) or the reason. File.exists is a bool.
+const written = File.write("log.txt", "first line")        // Result<bool, String>
+const appended = File.append("log.txt", "second line")     // Result<bool, String>
+const has_log = File.exists("log.txt")                     // true
+
+// Time.now() is the milliseconds since 1 January 1970 UTC, as an i64. The difference of two readings is a duration.
+const started = Time.now()
+const elapsed = Time.now() - started               // i64, a few milliseconds at most
+
+// Random.int(low, high) is a whole number from low up to, not including, high, like range. Random.float() is from 0.0 up to,
+// not including, 1.0. Random.seed(n) makes the numbers repeat, so a test can rely on them.
+Random.seed(42)
+const die = Random.int(1, 7)                       // 1, 2, 3, 4, 5 or 6
+const chance = Random.float()                      // for example 0.3141
+
+// System.trace(e) gives the call stack of a caught error as text, one line for each function that was running when it was
+// thrown, the innermost first. It is for logs and bug reports, and a program should not read the lines.
+//   at check_age (06-errors.raga:96)
+//   at ... the functions that called it
+let trace_text = ""
+try {
+    check_age(-1)
+} catch |e| {
+    trace_text = System.trace(e)
+}

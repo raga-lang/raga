@@ -1,0 +1,7 @@
+// A library whose top-level code prints. 10-modules.raga imports it to show when the code of a file runs.
+
+print("startup is running")
+
+const ready = true
+
+export(ready)

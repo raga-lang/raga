@@ -1,0 +1,625 @@
+// Attributes and reflection: metadata, build hooks, call hooks, reflection and introspection, compile-time
+// evaluation, dynamic access and operator overloading
+//
+// An attribute is written above a declaration and can do three things, each one a pattern you choose by how you
+// declare it (section 2):
+//   1. keep metadata:   const note = attribute(String text)                  the facts are stored on the declaration
+//   2. run at build:    ... |target, text| { ... }                           code that runs once, while the program is built
+//   3. run at call:     ... call |target, args, next| { ... }                code that runs on every call of the function
+// Reflection reads that data and the shape of types. compile() runs ordinary code while the program is being built.
+//
+// This template uses structs, enums and unions from 05-structs-enums-unions, functions and callbacks from 04-functions,
+// Optional and Result from 05-structs-enums-unions and 06-errors, and pointers from 08-memory.
+
+
+// ============================================================
+// 1. ATTRIBUTES: FACTS ABOUT A DECLARATION
+// ============================================================
+
+// An attribute is written in square brackets on the line above the declaration it describes:
+//   [name]
+//   [name(arguments)]
+// It always sits on top of the thing it describes, whatever that is: a variable, a function, a class, a struct, a method,
+// a field. The way the thing itself is written does not matter:
+//   [attributes]
+//   const name = ...                   // or a method, a field, a class: the attribute is above it
+// An attribute does nothing by itself. It is a fact about the declaration that the compiler and
+// your own code can read (section 4).
+// Text in an attribute is a String literal like anywhere else: [page("/")].
+
+[page("/")]
+const home = function() String {
+    return "welcome"
+}
+
+[page("/about")]
+const about = function() String {
+    return "about us"
+}
+
+// Several attributes go on one line, separated by commas, or on separate lines above the declaration.
+// Both forms mean the same. This also holds for one attribute with a list: [method(Ownership.Static, Inheritance.Final)] is the same
+// as [method(Ownership.Static)] followed by [method(Inheritance.Final)], see 07-classes-and-traits section 2.
+[page("/status"), cached(60)]
+const status = function() String {
+    return "ok"
+}
+
+[page("/health")]
+[cached(5)]
+const health = function() String {
+    return "healthy"
+}
+
+// An attribute can describe a function, a variable, a struct, an enum, a union or a field inside a struct.
+[version(2)]
+const api_level = 2
+
+[table("users")]
+const Account = struct {
+    [key]
+    i32 id
+    [between(0, 150)]
+    i32 age
+    String name
+}
+
+// An attribute before a method describes the method. The modifiers of a class method are such attributes,
+// see 07-classes-and-traits: [method(Ownership.Static, Inheritance.Final, Visibility.Public)]. A method in a class is written const name = method(...).
+const Gauge = struct {
+    i32 level
+    const raise = function() {
+        this.level = this.level + 1
+    }
+}
+
+// The arguments of an attribute are known while the program is being built. They are literals,
+// consts made from literals, enum values (Kind.Function, Visibility.Private), and the result of compile() (section 3).
+// [cached(unknown_at_runtime)]             // ERROR: an attribute argument must be known at compile time
+
+// Attributes that come with the language:
+//   [deprecated("reason")]  using the declaration is a compile-time warning that shows the reason
+[deprecated("use api_level")]
+const old_level = 1
+
+
+// ============================================================
+// 2. DECLARING YOUR OWN ATTRIBUTES
+// ============================================================
+
+// Some attributes come with the language and are special: [class(...)], [method(...)], [field(...)],
+// [accessor(...)], [get(...)] and [set(...)] extend a class, a method, a field or an accessor with who may use it and how it
+// is called. Their arguments are members of three enums that come with the language: Visibility (Public, Protected, Private),
+// Inheritance (Final, Abstract, Virtual, Override) and Ownership (Instance, Static), see 07-classes-and-traits section 2.
+// [deprecated(...)], [on(...)] and [operator(...)] have their own meaning.
+// You can declare attributes of your own as well, and they work the same way. The names class, method, field, accessor,
+// get and set belong to the special attributes, so an attribute of your own cannot use them (that is why the route attribute is page).
+//
+// An attribute exists at compile time and at run time. The compiler checks its arguments at every use, and the
+// arguments are kept on the declaration, so reflection can read them while the program runs (section 4), for
+// example to route a request or to validate a field.
+//
+// An attribute is declared as a binding whose head is attribute. The parentheses hold its typed parameters, which
+// say what it carries, and work like function parameters: types, defaults, named arguments.
+// What follows the parentheses decides what the attribute does. There are three patterns, and they build on each other.
+
+// PATTERN 1: METADATA ONLY. Nothing follows the parentheses. The arguments are stored on the declaration, and
+// that is all. This is enough when the attribute is only a fact that other code reads (section 4).
+const page = attribute(String path)
+const cached = attribute(i32 seconds)
+const version = attribute(i32 number)
+const table = attribute(String name)
+const key = attribute()
+const between = attribute(i32 low, i32 high)
+const metadata = attribute(String name)
+
+// PATTERN 2: A BUILD HOOK. A block after the parentheses runs once for each use, while the program is being built.
+// The block has parameters between | |: first the declaration the attribute sits on, then the declared parameters in
+// the order they were declared, with defaults already filled in. Their names are yours, and nothing is in scope
+// unless it is named between the pipes. The types come from the declaration of the attribute: target is a
+// BindingInfo for a function or a variable, a FieldInfo for a field, a TypeInfo for a type (section 4).
+// This is how to keep things in one place: every use adds itself to a table that you own.
+const routes = Map<String, BindingInfo>()           // const protects the name, the Map can still change
+
+const route = attribute(String path, String verb = "get") |target, path, verb| {
+    routes.set(path, target)                         // runs once for each [route(...)]
+}
+
+[route("/items")]                                    // the block runs with the function items, "/items" and "get"
+const items = function() String {
+    return "items"
+}
+[route("/items", verb = "post")]
+const add_item = function() String {
+    return "added"
+}
+// The block runs under the rules of compile() (section 3): no input or output, no pointers. A throw fails the build.
+// A const collection at the top level that a build hook changed is part of the finished program and is read-only
+// at run time. The hooks run in the order the attributes appear in the file, and imported files come first.
+// An attribute that accepts any arguments declares no parameters and collects them in a variadic block parameter:
+//   const note_all = attribute() |target, ...rest| { }       rest is an Array<Any>, every argument that was written
+
+// PATTERN 3: A CALL HOOK. A block named call runs at run time, every time the decorated function is called. It is
+// written after the build block, on the same line as its closing brace, or straight after the parentheses when there
+// is no build block. It has exactly three parameters, with names of your choice (four on a method, see below):
+//   target    the declaration of the function that is being called
+//   args      the arguments of this call, as an Array<Any>
+//   next      a callback that runs the function, or the next attribute above it, with the arguments you give it,
+//             and returns its result as an Any
+// The call hook gives back the value that the caller receives, as an Any.
+const logged = attribute() call |target, args, next| {
+    print(String.join("calling ", target.name))
+    return next(args)                                // run the function with the arguments as they came
+}
+
+// The call block does not receive the declared parameters, since it runs on every call and only knows the call. The
+// arguments written in the attribute are stored on the declaration (pattern 1), so the hook reads them from there:
+const guard = attribute(usize limit) call |target, args, next| {
+    const limit = attributes_of(target, "guard").get(0).arguments.get(0).as<usize>().unwrap()
+    if (args.len() > limit) {
+        throw(Error(message = "too many arguments", code = 2))
+    }
+    return next(args)
+}
+
+// All the patterns can be combined: a build hook and a call hook in one attribute. The route attribute can both
+// register the function and log each call:
+const traced_route = attribute(String path) |target, path| {
+    routes.set(path, target)
+} call |target, args, next| {
+    print(String.join("calling ", target.name))
+    return next(args)
+}
+
+[logged]
+const hello_world = function() String {
+    return "hello"
+}
+const greeting = hello_world()                       // prints "calling hello_world", greeting is "hello"
+
+// A CALL HOOK ON A METHOD also gets the object the method is called on. The attribute is limited to methods with
+// [on(Kind.Method)], and its call block has four parameters, target, receiver, args and next. receiver is the object, as an Any.
+// args holds only the arguments of the call, and next(args) runs the method on the same object. A hook on a function keeps three.
+[on(Kind.Method)]
+const traced = attribute() call |target, receiver, args, next| {
+    print(String.format("%s on %s", target.name, receiver.typeName()))
+    return next(args)
+}
+
+const Hailer = class {
+    String name = ""
+
+    [traced]
+    const hello = method(String other) String {
+        return String.join("hi ", other)
+    }
+}
+const hailed = Hailer(name = "ann").hello("bob")     // prints "hello on Hailer", hailed is "hi bob"
+
+// Rules:
+//   - No pattern is required. An attribute with only parentheses stores its arguments, and that is a complete attribute.
+//   - The arguments are always stored on the declaration, with or without hooks, so attributes_of (section 4) reads
+//     them from an attribute that has a hook as well.
+//   - The parameter list of a build block has target and then one name for each declared parameter, no more and no fewer.
+//     A declared parameter is not in scope in the block by its own name: write it between the pipes.
+//   - The call block has three parameters, and four on an attribute limited to methods, see the method hook above. A build block is written once, and a call block is written once.
+//   - next is an ordinary function value (04-functions section 10): the hook calls it to run the function.
+//   - The call hook belongs to the function itself. The compiler keeps the body of the function under an internal name
+//     and makes the function's own name run the hooks first, so a call through a variable that holds the function, or
+//     a call made by invoke (section 5), is also seen by the hook. A function with no call hook is called directly.
+//   - Several attributes on one function are used in the order they are written: the first is the outermost. Its call hook
+//     runs first, and its next runs the hook of the attribute below it, and the last next runs the function.
+//   - The call hook can run code before and after next, give next other arguments, return another value, skip next
+//     altogether, or catch an error from next with try. An Error from the function reaches the caller unless it is caught.
+//   - A hook returns an Any. For a function that returns nothing the value is ignored.
+//   - The arguments arrive as an Array<Any>, so each call boxes them. The hook sees the values but not the types of the function.
+//   - A hook cannot create a new function value to replace the original, it can only run around it.
+//   - The names class, method, field, accessor, get, set and call belong to the language, so an attribute of your own cannot use them.
+// const bad = attribute(String path) |target| { }                // ERROR: the block names 1 parameter, it takes target and path
+// const bad = attribute(String path) |target, other| { routes.set(path, target) }   // ERROR: path is not named between the pipes
+// const bad = attribute() call |target, args| { }                // ERROR: a call block takes target, args and next
+// const bad = attribute() call |target, args, next| { } call |a, b, c| { }   // ERROR: two call blocks
+
+// An attribute can be limited to the kinds of declaration it may be put on, with the built-in [on(...)] attribute.
+// Kind is the enum of section 4. The kind also decides the type of target in the hooks.
+[on(Kind.Function)]
+const handler = attribute(String name)
+// [handler("x")]
+// const not_a_function = 1                 // ERROR: handler can only be put on a function
+
+// Using an attribute that was not declared, or giving it the wrong arguments, is a compile error.
+// [missing]                              // ERROR: missing is not declared
+// [page(5)]                               // ERROR: path is a String, 5 is an i32
+// [page("/a", "/b")]      // ERROR: page takes one argument
+
+
+// ============================================================
+// 3. COMPILE-TIME EVALUATION
+// ============================================================
+
+// compile(expression) runs the expression while the program is being built and puts its result in the program
+// as a constant. It is an ordinary call, written like any other function call.
+const square = function(i32 n) i32 {
+    return n * n
+}
+const sixty_four = compile(square(8))      // 64, computed by the compiler, the program holds only the number
+
+// Any function can run at compile time, as long as everything it uses is known at compile time.
+// That includes loops, if, match, and calls to other functions.
+const squares = function(i32 count) List<i32> {
+    const result = List<i32>()
+    for (range(1, count)) |i| {
+        result.push(i * i)
+    }
+    return result
+}
+const table3 = compile(squares(4))        // a List<i32> built at compile time: 1, 4, 9
+
+// What cannot run at compile time:
+//   - input and output (print, read_line, files), and anything that depends on when the program runs
+//   - pointers to variables, alloc and free
+//   - names that are variables (let) of the running program, only consts that are themselves compile-time values
+// const bad = compile(read_line())        // ERROR: read_line needs the running program
+
+// If the code throws an Error while the program is being built, that is a compile error with the message.
+// This gives checks that fail the build:
+const check_size = function(usize actual, usize wanted) {
+    if (actual != wanted) { throw(Error(message = "wrong size", code = 1)) }
+}
+compile(check_size(sizeof<Account>(), sizeof<Account>()))
+// compile(check_size(sizeof<Account>(), 1))   // ERROR at compile time: wrong size
+
+// The result of compile is a constant. A non-primitive value is created fresh at each use, so changing it never changes the constant.
+let copy_of_table = table3
+
+// Reflection (next section) is available at compile time, so types can be inspected while building.
+
+
+// ============================================================
+// 4. REFLECTION AND INTROSPECTION
+// ============================================================
+
+// Introspection asks questions about a value or a type. Reflection gives back data that describes it.
+//   typeof(value)    the type of a value, known at compile time: typeof(5) is i32
+//   reflect<T>()     a TypeInfo that describes the type T
+const info = reflect<Account>()
+
+// The types that describe things come with the language:
+//
+//   const Kind = enum {
+//       const Primitive = 0; const Struct = 1; const Enum = 2; const Union = 3; const Function = 4; const Field = 5; const Heap = 6; const Method = 7
+//   }
+//
+//   const TypeInfo = struct {
+//       String name                         // "Account"
+//       Kind kind                           // Kind.Struct
+//       usize size                          // sizeof<T>()
+//       usize alignment                     // alignof<T>()
+//       Array<FieldInfo> fields             // the fields of a struct
+//       Array<VariantInfo> variants         // the variants of a tagged union, or the names of an enum
+//       Array<AttributeInfo> attributes     // the attributes on the type
+//   }
+//   const FieldInfo = struct {
+//       String name
+//       String type_name
+//       Array<AttributeInfo> attributes
+//   }
+//   const VariantInfo = struct {
+//       String name
+//       Array<FieldInfo> fields
+//   }
+//   const AttributeInfo = struct {
+//       String name
+//       Array<Any> arguments                // the values, boxed in Any (section 5)
+//   }
+//   const BindingInfo = struct {
+//       String name                         // the name of a declaration
+//       Kind kind
+//       String type_name
+//       Array<AttributeInfo> attributes
+//   }
+
+const account_name = info.name             // "Account"
+const account_kind = info.kind             // Kind.Struct
+const account_size = info.size
+const field_count = info.fields.len()      // 3
+
+// TypeInfo is plain data, so it can be used while building and while running.
+const describe_fields = function() String {
+    let names = ""
+    for (info.fields) |member| {
+        names = String.join(String.join(names, member.name), " ")
+    }
+    return names                          // "id age name "
+}
+
+// Reading attributes:
+//   info.attributes                       every attribute on the type
+//   AttributeInfo has name and arguments
+// attributes_of(thing, name) takes the name as a String and gives the attributes whose name equals it (compared with String.equals) that sit on a declaration, as an Array<AttributeInfo>.
+// The array is empty when there is none, and has more than one entry when the attribute is written several times.
+// thing is a function, a type, a TypeInfo, a BindingInfo or a FieldInfo. A function or a type named in the code is allowed
+// here, although functions cannot otherwise be passed around, because the lookup is made while the program is built.
+const table_attributes = attributes_of(info, "table")       // Array<AttributeInfo>, one entry here
+
+// The attributes of one function, found by naming it:
+const home_pages = attributes_of(home, "page")                // the [page(...)] attributes of home
+const home_path = home_pages.get(0).arguments.get(0).as<String>().unwrap()    // "/"
+
+// A field's attributes are read the same way.
+const has_key = function(FieldInfo member) bool {
+    return attributes_of(member, "key").len() > 0
+}
+
+// Which declarations carry an attribute is not a global question. Each declaration keeps its own attributes. When you
+// need a list of all of them, an attribute with a build hook adds each use to a table of your own (section 2).
+
+// Introspection of a value: typeof is known when the program is built, typeName is the name at run time.
+const answer_type = typeof(42)             // i32
+// typeof never looks at the running program, it is the same for every run.
+
+
+// ============================================================
+// 5. DYNAMIC ACCESS
+// ============================================================
+
+// Reflection so far is a description. Dynamic access reads and writes at run time by name.
+// It needs a type that can hold any value, so Raga has Any.
+//   Any(value)         boxes a value of any type, a non-primitive value
+//   a.typeName()       the name of the type inside
+//   a.is<T>()          true when the type inside is T
+//   a.as<T>()          Optional<T>: Some when the type inside is T, None otherwise
+const boxed = Any(42)
+const boxed_name = boxed.typeName()        // "i32"
+const is_number = boxed.is<i32>()          // true
+const as_text = boxed.as<String>()         // None, it holds an i32
+const as_number = boxed.as<i32>()          // Some, with value 42
+
+// A field is read and written by its name as a String through a pointer to the struct.
+// The name is a String, and it is matched with the names of the fields using String.equals, so the text decides.
+//   get_field(pointer, name)          Optional<Any>: None when there is no such field
+//   set_field(pointer, name, value)   Result<bool, String>: Ok(true), or Err with the reason
+let account = Account(id = 1, age = 30, name = "ann")
+const account_pointer = &account
+
+match (get_field(account_pointer, "age")) {
+    case (Some) |s| { print(s.value.as<i32>().unwrap()) }    // 30
+    case (None)     { print("no such field") }
+}
+
+const set_age = set_field(account_pointer, "age", Any(31))   // Ok(true), account.age is 31
+const set_bad = set_field(account_pointer, "age", Any("x"))   // Err: age is an i32, not a String
+const set_missing = set_field(account_pointer, "weight", Any(1))    // Err: Account has no field weight
+
+// The pointer is what lets dynamic access change the struct itself. A const struct has no pointer
+// (&const_name is an error), so it cannot be changed this way.
+
+// A binding found by reflection, such as the target a build hook stored in a table, can be run. invoke checks the number
+// and the types of the arguments when it runs and gives a Result. It goes through the call hook of the function, if
+// it has one (section 7 shows it).
+//   binding.invoke(arguments)        Result<Any, String>
+
+// Dynamic access trades the checks of the compiler for flexibility: a wrong name or type is a Result at run time,
+// not an error at compile time. Prefer ordinary code, and use dynamic access for frameworks, serialization,
+// validation and tools that cannot know the types in advance.
+
+
+// ============================================================
+// 6. OPERATOR OVERLOADING
+// ============================================================
+
+// An operator on your own types is an ordinary function marked with the [operator(...)] attribute.
+// The argument is a value of the Op enum, so the operator is checked and written like any other name:
+//   const Op = enum {
+//       const Add = 0; const Sub = 1; const Mul = 2; const Div = 3; const Mod = 4; const Neg = 5; const Not = 6
+//       const Eq = 7; const Lt = 8; const Le = 9; const Gt = 10; const Ge = 11
+//       const BitAnd = 12; const BitOr = 13; const BitXor = 14; const BitNot = 15; const Shl = 16; const Shr = 17
+//   }
+// The parameters decide which types the operator works for. One parameter is a unary operator, two are binary.
+const Vec = struct {
+    f64 x
+    f64 y
+}
+
+[operator(Op.Add)]
+const add_vec = function(Vec a, Vec b) Vec {
+    return Vec(x = a.x + b.x, y = a.y + b.y)
+}
+
+[operator(Op.Mul)]
+const scale_vec = function(Vec a, f64 k) Vec {
+    return Vec(x = a.x * k, y = a.y * k)
+}
+
+[operator(Op.Mul)]
+const scale_vec_left = function(f64 k, Vec a) Vec {
+    return Vec(x = a.x * k, y = a.y * k)
+}
+
+[operator(Op.Neg)]
+const negate_vec = function(Vec a) Vec {
+    return Vec(x = -a.x, y = -a.y)
+}
+
+const sum = Vec(x = 1.0, y = 2.0) + Vec(x = 3.0, y = 4.0)     // calls add_vec
+const doubled = Vec(x = 1.0, y = 2.0) * 2.0                   // calls scale_vec
+const flipped = 2.0 * Vec(x = 1.0, y = 2.0)                   // calls scale_vec_left, order matters
+const away = -Vec(x = 1.0, y = 2.0)                           // calls negate_vec
+
+// The operator functions are still ordinary functions and can be called by name: add_vec(a, b).
+
+// Compound assignment is made from the operator, so += needs no extra function.
+let position = Vec(x = 0.0, y = 0.0)
+position += Vec(x = 1.0, y = 1.0)         // position = position + Vec(...)
+
+// Equality and ordering are declared the same way. != comes from Eq, and > and >= are separate operators.
+[operator(Op.Eq)]
+const same_vec = function(Vec a, Vec b) bool {
+    return a.x == b.x && a.y == b.y
+}
+[operator(Op.Lt)]
+const shorter = function(Vec a, Vec b) bool {
+    return a.x * a.x + a.y * a.y < b.x * b.x + b.y * b.y
+}
+const equal = Vec(x = 0.0, y = 0.0) == Vec(x = 0.0, y = 0.0)      // calls same_vec
+const different = Vec(x = 0.0, y = 0.0) != Vec(x = 1.0, y = 0.0)  // the negation of same_vec
+const smaller = Vec(x = 0.0, y = 0.0) < Vec(x = 1.0, y = 0.0)     // calls shorter
+
+// An operator can also be a method of a struct. The struct is the left operand and the method has one parameter
+// for a binary operator, and none for a unary one.
+const Money = struct {
+    i32 cents
+
+    [operator(Op.Add)]
+    const add = function(Money other) Money {
+        return Money(cents = this.cents + other.cents)
+    }
+
+    [operator(Op.Neg)]
+    const negate = function() Money {
+        return Money(cents = -this.cents)
+    }
+}
+const total = Money(cents = 150) + Money(cents = 250)         // Money(cents = 400)
+
+// An operator on a class is a method marked [operator(...)], written in the class body like any method, and it follows the
+// rules of methods (07-classes-and-traits). The object is the left operand. By default it is chosen by the type of the left
+// operand, so a class that extends inherits it. A method marked virtual is chosen by the class of the value instead, and a class
+// that extends can replace it with override:
+const Vector = class {
+    f64 x = 0.0
+    f64 y = 0.0
+
+    [operator(Op.Add), method(Inheritance.Virtual)]
+    const add = method(Vector other) Vector {
+        return Vector(x = this.x + other.x, y = this.y + other.y)
+    }
+
+    [operator(Op.Neg)]
+    const negate = method() Vector {
+        return Vector(x = -this.x, y = -this.y)
+    }
+
+    [operator(Op.Eq)]
+    const same = method(Vector other) bool {
+        return this.x == other.x && this.y == other.y
+    }
+}
+
+const Vector3 = class {
+    f64 z = 0.0
+
+    [operator(Op.Add), method(Inheritance.Override)]
+    const add = method(Vector other) Vector {
+        match (other.as<Vector3>()) {
+            case (Some) |v| { return Vector3(x = this.x + v.value.x, y = this.y + v.value.y, z = this.z + v.value.z) }
+            case (None)     { return Vector3(x = this.x + other.x, y = this.y + other.y, z = this.z) }
+        }
+    }
+} extends(Vector)
+
+const va = Vector(x = 1.0, y = 2.0)
+const vb = Vector(x = 3.0, y = 4.0)
+const vsum = va + vb                              // calls va.add(vb): Vector(x = 4.0, y = 6.0)
+const vneg = -va                                  // calls va.negate()
+const vequal = va == vb                           // calls va.same(vb): false, not a comparison of references
+const v3 = Vector3(x = 1.0, y = 1.0, z = 1.0)
+const v3sum = v3 + vb                             // the left operand is a Vector3, so its own add runs
+Vector v3_as_vector = v3
+const through_base = v3_as_vector + vb            // add is virtual: the class of the value decides, so Vector3's add runs
+const inherited = -v3                             // negate was not replaced, so the one of Vector runs
+
+// Rules for a class:
+//   - A binary operator is a method with one parameter, the right operand. A unary operator is a method with none.
+//   - The method is chosen by the type of the left operand, like any method that is not virtual. Mark it virtual, and the class of
+//     the value decides, so a base type holding a subclass runs the replaced operator.
+//   - A class may declare == with Op.Eq. That makes == compare what the method compares, as it does for a struct.
+//   - Operators are inherited and replaced like other methods, and a final or private operator method is final or private.
+// [operator(Op.Add)]
+// const add = method() Vector { return Vector() }    // ERROR: Op.Add is binary: a method takes one parameter, the right operand
+// Rules:
+//   - At least one parameter must be a type you declared, so i32 + i32 can never be changed.
+//   - The number of parameters must fit the operator: two for a binary one, one for a unary one.
+//   - && and || cannot be overloaded, they must stop early. Neither can = or the address-of and
+//     dereference operators & and .*, they are part of the language.
+//   - Two functions may share an operator when their parameter types differ. This is the only overloading in Raga.
+//   - Nothing is converted for you: Vec * 2 is an error because 2 is an i32 and scale_vec takes an f64.
+//   - On a non-primitive value ==, as always, compares references. An == operator is declared only for your structs, unions and classes.
+// [operator(Op.Add)]
+// const bad = function(i32 a, i32 b) i32 { return a + b }    // ERROR: no parameter is a type you declared
+// [operator(Op.Add)]
+// const bad = function(Vec a) Vec { return a }               // ERROR: + is binary, two parameters
+// [operator(Op.And)]                                         // ERROR: Op has no And, && cannot be overloaded
+// const bad = Vec(x = 0.0, y = 0.0) * 2                      // ERROR: no operator for Vec and i32
+
+
+// ============================================================
+// 7. PUTTING IT TOGETHER: ROUTES AND VALIDATION
+// ============================================================
+
+// A route is registered by a build hook and logged by a call hook. The function and its attribute are ordinary code.
+// Metadata (pattern 1) is read by name, the table (pattern 2) is filled while building, and the call hook (pattern 3)
+// runs on every call.
+[traced_route("users/")]
+const users = function(i32 first, i32 count) String {
+    return "list"
+}
+
+// Pattern 1 on the same function: its arguments are stored, so the path can be read back by the name of the function.
+const users_path = attributes_of(users, "traced_route").get(0).arguments.get(0).as<String>().unwrap()   // "users/"
+
+// Pattern 3: this call prints "calling users" first, then returns "list".
+const first_page = users(1, 3)
+
+// Pattern 2: the table was filled while building, so a request can be dispatched to a function by its path.
+const handle = function(String path) Result<String, String> {
+    if (!routes.has(path)) { return Result.Err("not found") }
+    match (routes.get(path).invoke({Any(1), Any(3)})) {
+        case (Ok)  |ok|  { return Result.Ok(ok.value.as<String>().unwrap()) }
+        case (Err) |bad| { return Result.Err(bad.reason) }
+    }
+}
+const response = handle("users/")     // Ok with "list", and "calling users" is printed on the way
+
+// Field attributes drive validation for any struct, whatever its fields are.
+const validate = function<T>(ptr<T> target) Result<bool, String> {
+    for (reflect<T>().fields) |member| {
+        const limits = attributes_of(member, "between")
+        if (limits.len() > 0) {
+            const value = get_field(target, member.name).unwrap().as<i32>().unwrap()
+            const low = limits.get(0).arguments.get(0).as<i32>().unwrap()
+            const high = limits.get(0).arguments.get(1).as<i32>().unwrap()
+            if (value < low || value > high) {
+                return Result.Err(String.join(member.name, " is out of range"))
+            }
+        }
+    }
+    return Result.Ok(true)
+}
+const verdict = validate(account_pointer)  // Ok(true) while age is within 0 and 150
+
+// Behavior for every struct without writing it for each one: a function that reads the type. There is no hook that
+// generates code for a type, so a method such as to_json is not added to Account. write_text works for any struct, because
+// reflect<T>() lists its fields and get_field reads each one by name.
+const show_any = function(Any value) String {
+    match (value.as<String>()) {
+        case (Some) |text| { return text.value }
+        case (None)        { }
+    }
+    match (value.as<i32>()) {
+        case (Some) |number| { return String.format("%d", number.value) }
+        case (None)          { return "?" }
+    }
+}
+
+const write_text = function<T>(ptr<T> value) String {
+    let text = ""
+    for (reflect<T>().fields) |member| {
+        const field = get_field(value, member.name).unwrap()
+        text = String.format("%s%s=%s;", text, member.name, show_any(field))
+    }
+    return text
+}
+const account_text = write_text(account_pointer)   // "id=1;age=31;name=ann;"
+// An attribute such as [json] on the struct can tell such a function which structs and fields to write (section 4). Where
+// the speed of hand-written code matters, write the method by hand.

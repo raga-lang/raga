@@ -1,0 +1,957 @@
+// User-defined types. The sections run from the simplest to the most combined:
+//
+//    1. struct              named fields
+//    2. enum                a fixed set of names
+//    3. union               untagged: one storage, several views
+//    4. tagged union        one of several variants, each with its own data
+//    5. match               take an enum or tagged union apart
+//    6. alias, newtype      a new name, a new distinct type
+//    7. generics            your own types with a type parameter
+//    8. your own types in the built-in collections
+//    9. Optional, Result    the two generic tagged unions that come with the language
+//   10. struct again        methods, and a struct that puts every earlier piece together
+//   11. a pattern           chaining: one call continues into the next, made only of structs and methods
+//   12. a pattern           iterators: a struct with a next method that gives an Optional
+//
+// A struct can also hold functions (methods), see section 10. A struct has no inheritance and no interfaces:
+// a struct plus its methods is the whole story. Classes, interfaces and traits are in 07-classes-and-traits.
+// A type is declared like a variable: const Name = kind { ... }
+// Type names are Capitalized, because every non-primitive type is. A value of a struct, an enum or a union is a
+// non-primitive value, like a String or a List: it lives on the heap, a name holds a reference to it, and an
+// assignment shares it. clone makes a separate copy.
+
+
+// ============================================================
+// 1. STRUCT: NAMED FIELDS
+// ============================================================
+
+// A struct groups fields. Each field is written as type name, and may have a default value: type name = value.
+// A field without a default must be given when the value is created, a field with one may be left out.
+// Fields are written one per line, or on one line separated by ;: struct { f64 w; f64 h }. A comma between fields is
+// an error, because a block separates its statements with a new line or ;.
+// const bad = struct { f64 w, f64 h }    // ERROR: write struct { f64 w; f64 h }
+// The default is worked out again for every value that is created, so two values never share a List written as a default.
+const Point = struct {
+    f64 x
+    f64 y
+}
+
+// A value is created by calling the type with its fields, written name = value.
+// Fields can come in any order. A field that has no default cannot be left out.
+const p1     = Point(x = 1.5, y = 2.5)    // x 1.5, y 2.5
+const p1b    = Point(y = 2.5, x = 1.5)    // the same value, the order does not matter
+Point p2     = Point(x = 3.0, y = 4.0)    // explicit type, same value
+// const bad = Point(x = 1.5)             // ERROR: y was not given, and y has no default
+// const bad = Point()                    // ERROR: x and y were not given
+// A struct with two or more fields is always created with names, never by position:
+// const bad = Point(1.5, 2.5)            // ERROR: write Point(x = 1.5, y = 2.5)
+// const bad = Point(z = 1.0)             // ERROR: Point has no field z
+// A struct with exactly one field may be created by position: UserId(7), see section 6.
+
+// Fields are read and written with a dot. const protects the name, not the Point it refers to.
+const px = p1.x                           // 1.5 (f64)
+p2.x = 9.0                                // OK: the Point that p2 refers to changes
+// p2 = p1                                // ERROR if p2 were const: a const name cannot be rebound
+// const bad = Point(x = 1, y = 2)       // ERROR: 1 is a whole number, write 1.0
+// const bad = Point(x = 1.0, y = height) // ERROR: height is not declared (x and y are field names, not variables)
+// const bad = Piont(x = 1.0)             // ERROR: the type Piont is not declared
+
+// == on a struct asks whether two names refer to the very same Point, not whether the fields are equal
+// (02-data-structures section 7). To compare the fields, compare them one by one: p1.x == p1b.x && p1.y == p1b.y.
+const same_p = Point(x = 1.0, y = 2.0) == Point(x = 1.0, y = 2.0)   // false: two separate Points
+const same_name = p1 == p1                 // true
+
+// A struct is a non-primitive value: assignment shares it, it does not copy it.
+let   p3 = p1                             // p3 and p1 are two names for one Point
+p3.x = 0.5                                // p1.x is 0.5 too
+const p4 = p1.clone()                     // a separate Point: changing p4 does not change p1
+
+// A copy with some fields changed: clone takes the names of the fields to change, and every other field is copied.
+const p5 = p1.clone(x = 9.0)              // Point(x = 9.0, y = 2.5): p1 is unchanged
+const p6 = p5.clone(x = 0.0, y = 0.0)     // any number of fields can be named
+// A field that holds a non-primitive value is cloned like in a plain clone, unless it is the one that is named.
+// const bad = p1.clone(z = 1.0)          // ERROR: Point has no field z
+// const bad = p1.clone(x = 1)            // ERROR: 1 is not an f64, write 1.0
+// const bad = p1.clone(1.0)              // ERROR: clone takes the names of the fields to change, write p1.clone(x = 1.0)
+
+// A struct can hold other structs and any other non-primitive value.
+const Line = struct {
+    Point from
+    Point to
+    String name
+}
+const ln = Line(from = Point(x = 0.0, y = 0.0), to = Point(x = 1.0, y = 1.0), name = "diagonal")
+const lx = ln.to.x                        // 1.0, fields chain
+
+// Field names are unique inside one struct. Every field without a default must be given when the value is created.
+const User = struct {
+    String name
+    i32 age
+}
+const u = User(name = "ann", age = 31)
+// const bad = User(age = 31)             // ERROR: name was not given
+
+// DEFAULT VALUES. A field with = value can be left out when the value is created, and takes the default.
+// Required fields and fields with a default can be mixed in one struct.
+const Window = struct {
+    String title = "untitled"
+    i32 width = 800
+    i32 height = 600
+    List<String> tags = []                // a new List for every Window, the Windows below do not share one
+}
+const w1 = Window()                       // every field has a default, so nothing has to be given
+const w2 = Window(title = "editor", width = 1024)     // height is 600 and tags is empty
+const w3 = Window()
+w1.tags.push("a")                         // w3.tags is still empty
+
+const Segment = struct {
+    f64 length                            // required
+    f64 angle = 0.0                       // optional
+}
+const s_flat = Segment(length = 2.0)      // angle is 0.0
+const s_tilt = Segment(length = 2.0, angle = 0.5)
+// const bad = Segment(angle = 0.5)       // ERROR: length was not given, and length has no default
+// Window(color = 1)                      // ERROR: Window has no field color
+// A default has the type of its field and is checked like any declaration:
+// const Bad = struct { i32 width = "wide" }      // ERROR: "wide" is a String, width is an i32
+// const Bad = struct { u8 level = 300 }          // ERROR: 300 does not fit in a u8
+// A default may use the names declared above the struct, not the other fields of the same struct.
+
+// Only String has an equals method. A struct has no equals, compare its fields yourself:
+const u1 = User(name = "ann", age = 31)
+const u2 = User(name = "ann", age = 31)
+const same_user = u1.name.equals(u2.name) && u1.age == u2.age   // true: text compared with equals, age with ==
+
+// Every struct gets a clone method for free, generated from its fields:
+// a primitive field is copied, and a non-primitive field is cloned with its own clone.
+const u3 = u1.clone()                     // a copy: u3.name is a new String, not shared with u1.name
+// A struct can replace clone, or add its own comparison method, by declaring it (section 10).
+
+// Every struct and every untagged union has the layout of a C struct: the fields in the order they are written, each at a
+// multiple of its alignment, with padding at the end. So its layout is known, and the generated methods raw()
+// and Type.fromRaw(p) read and write it as bytes, explained with pointers in 08-memory section 7.
+
+
+// ============================================================
+// 2. ENUM: A FIXED SET OF NAMES
+// ============================================================
+
+// An enum is a type with a fixed set of names. A value is exactly one of them, and every name has a number that you write.
+// Like every type it is written with braces, and like every block it holds initializations: each member is a constant
+// with its number, const Name = number, one per line or separated by ;
+// A const after the members whose value is a function is a method (section 10).
+const Color = enum {
+    const Red = 0
+    const Green = 1
+    const Blue = 2
+}
+
+const c1 = Color.Green                    // Color
+Color c2 = Color.Blue
+// const bad = Color.Purple               // ERROR: Purple is not in Color
+
+// The number is the one that was written. Cast to read it, and cast a number to get the member.
+const n1 = i32(Color.Green)               // 1
+const c3 = Color(2)                       // Color.Blue, a number that no member has is a runtime error
+
+// The numbers are always written, so they can be anything, in any order. The names are chosen so that none repeats the
+// name of a built-in type or variant (Error, Ok), which would be confusing next to Error and Result.Ok.
+const Status = enum { const Success = 200; const NotFound = 404; const ServerError = 500 }
+const code = i32(Status.NotFound)         // 404
+
+// Rules:
+//   - A member is const Name = integer. The value is an integer written in the code, and every member has one.
+//   - Two members cannot have the same value.
+//   - Members are separated by a new line or by ;, never by a comma.
+//   - A bare name is not a member: the block holds initializations, and a name alone initializes nothing.
+// const bad = enum { Red, Green }                      // ERROR: write const Red = 0; const Green = 1
+// const bad = enum { const Red = 0, const Green = 1 }  // ERROR: separate the members with ; or a new line
+// const bad = enum { const Red = 0; const Green = 0 }  // ERROR: Red and Green have the same value
+// const bad = enum { const Red }                       // ERROR: a member needs its value
+
+// An enum member is one shared constant, so == on two names for the same member is true.
+const same = c1 == Color.Green            // true
+
+// The default value of an enum is its first name, so Color() is Color.Red.
+// This is the same idea as i32 defaulting to 0.
+const dflt = Color()                      // Color.Red
+const dflt2 = Status()                    // Status.Success, the first name, whatever numbers are set
+// A tagged union (section 4) has no default value, there is no sensible first variant to pick.
+// A struct field of an enum type can have a default: Color tint = Color.Red.
+// A tagged union has no default value of its own, but a field of a tagged union type can be given one that names a variant.
+
+
+// ============================================================
+// 3. UNION (UNTAGGED): ONE STORAGE, SEVERAL VIEWS
+// ============================================================
+
+// An untagged union lists fields written as type name, and each may have a default, like a struct.
+// A union holds one view at a time, so it is created by naming the one field to start with: Bits32(i = 0).
+// When the first field has a default, the union can also be created with no argument, and then it starts as that field.
+// All fields share the same bytes. Writing one changes what the others read.
+// The union does not remember which field was written last, so you must know it yourself.
+// Its size is the size of its largest field, there is no extra tag.
+// Use it for reading raw bits, otherwise use a tagged union (section 4).
+
+const Bits32 = union {
+    i32 i = 0
+    f32 f
+}
+
+let num = Bits32(i = 0)                   // starts as the i view
+const num0 = Bits32()                     // starts as the i view, because i has a default
+const num1 = Bits32(f = 1.0)              // starts as the f view
+// Bits32(i = 0, f = 1.0)                 // ERROR: a union holds one view at a time
+num.f = 1.0                               // write the f view
+const bits = num.i                        // read the same 4 bytes as i32: 1065353216
+num.i = 0x40000000                        // write the i view
+const back = num.f                        // 2.0, the same 4 bytes read as f32
+
+// Reading the field that was last written is always fine.
+// Reading another field reinterprets the bytes and does not check anything.
+
+// Example: look at the bytes of a 64-bit float.
+const Float64Bits = union {
+    f64 value
+    u64 bits
+}
+let fb = Float64Bits(value = 1.0)
+const raw = fb.bits                       // 4607182418800017408, the IEEE 754 pattern of 1.0
+
+// Example: a C value that is either an int or a pointer, depending on a flag stored elsewhere.
+const CValue = union {
+    i64 number
+    ptr<u8> address
+}
+
+// An untagged union cannot be used with match, because it has no tag to look at.
+// const bad = match (num) { ... }        // ERROR: match needs a tagged union or an enum
+
+
+// ============================================================
+// 4. TAGGED UNION: ONE OF SEVERAL VARIANTS, EACH A STRUCT
+// ============================================================
+
+// A tagged union holds exactly one variant at a time, and it remembers which one (the tag).
+// Every variant is a struct, so the data of a variant is written like any struct: type name.
+// A variant is added to the union body in one of two ways:
+//   declared inside    const Circle = struct { f64 radius }     a new variant, owned by the union
+//   named from outside const Circle = Circle                    an existing struct type becomes a variant
+// A variant with no data is a struct with no fields: const Empty = struct { }
+
+const Shape = union {
+    const Circle = struct { f64 radius }  // declared inside
+    const Rect   = struct { f64 w; f64 h }
+    const Empty  = struct { }
+}
+
+// A variant that is declared inside the union is created through the union. It takes the arguments of its struct
+// (section 1): named when it has two or more fields, positional or named when it has one, none when it has none.
+// A variant that is named from outside is different, see below: it wraps a value that already exists.
+const s1 = Shape.Circle(radius = 2.0)     // Shape
+const s1b = Shape.Circle(2.0)             // the same, one field may be positional
+const s2 = Shape.Rect(w = 3.0, h = 4.0)   // Shape
+const s3 = Shape.Empty                    // Shape, a variant without data is written without ()
+Shape s4 = Shape.Circle(radius = 0.5)     // explicit type, same value
+// const bad = Shape.Rect(3.0, 4.0)       // ERROR: write Shape.Rect(w = 3.0, h = 4.0)
+// const bad = Shape.Circle(radius = 1)   // ERROR: 1 is not an f64
+// const bad = Shape.Triangle(1.0)        // ERROR: Shape has no variant Triangle
+
+// All variants have the same type, Shape, so they can live together.
+const shapes = [Shape.Circle(1.0), Shape.Rect(w = 1.0, h = 2.0), Shape.Empty]   // List<Shape>
+
+// A variable holding a tagged union can be rebound to another variant, not just another value.
+let current = Shape.Empty
+current = Shape.Circle(3.0)               // OK: still a Shape
+
+// The data can only be read through match (section 5). There is no s1.radius.
+// const bad = s1.radius                  // ERROR: read the data with match
+
+// A tagged union stores a hidden tag next to the data, so it is a little larger than its biggest variant.
+
+// --- variants named from outside ---
+// A struct declared outside the union can be a variant too. It stays a normal struct on its own,
+// and one struct can belong to several unions.
+const Square   = struct { f64 side }
+const Triangle = struct { f64 base; f64 height }
+
+const Figure = union {
+    const Square = Square                 // named from outside: the variant Square starts from the existing struct Square
+    const Triangle = Triangle             // named from outside
+    const Dot = struct { }                // declared inside, mixed with the others
+}
+
+// A variant has one meaning for its argument, depending on how it was added to the union:
+//   - declared inside (const Dot = struct { }, const Circle = struct { f64 radius }): the argument is the FIELDS of the
+//     variant, written like a struct creation: Shape.Circle(radius = 2.0), or Shape.Circle(2.0) for a single field.
+//   - named from outside (Square, Triangle): the argument is a VALUE of that struct, which the variant wraps.
+const sq  = Square(side = 2.0)            // a Square on its own, not a Figure
+const fg1 = Figure.Square(sq)             // wraps the Square that sq refers to
+const fg2 = Figure.Triangle(Triangle(base = 3.0, height = 4.0))   // wraps a new Triangle
+const fg3 = Figure.Dot                    // declared inside, and it has no fields
+// const bad = Figure.Square(2.0)                         // ERROR: Square is named from outside, give it a Square value
+// const bad = Figure.Triangle(base = 3.0, height = 4.0)  // ERROR: the same, write Figure.Triangle(Triangle(base = ..., height = ...))
+
+// Rules for the union body:
+//   - A bare name must be an existing struct type. A bare name that does not exist is a compile error.
+//   - A name used inside the body means one thing only. Declaring `const Square = struct { ... }` inside
+//     Figure while an outside Square exists is an error, pick one. This is why the untagged union of section 3
+//     is called Bits32: a top-level Number would clash with the variant Number of Token below.
+//   - The same struct cannot appear twice in one union, the tag is the variant's type.
+//     To hold two of the same, wrap one in a newtype (section 6).
+//   - Variant names are Capitalized, like every type name.
+
+// --- example: a token is one of several kinds of piece of text ---
+const Token = union {
+    const Number = struct { f64 value }
+    const Word   = struct { String text }
+    const Symbol = struct { char ch }
+    const End    = struct { }
+}
+const t1 = Token.Number(3.5)
+const t2 = Token.Word("hi")
+const t3 = Token.Symbol('+')
+const stream = [t1, t2, t3, Token.End]     // List<Token>: one list holds every kind
+
+// The same idea is how Optional and Result are built (section 9).
+
+// Tagged union or untagged union?
+//   Tagged:   the type knows which variant it holds, safe, read with match.   Use this by default.
+//   Untagged: the type is raw shared bytes, you track the variant yourself.   Use it for bit tricks.
+//   They look different on purpose: a tagged union body holds structs, an untagged one holds plain fields.
+
+
+// ============================================================
+// 5. MATCH: TAKE AN ENUM OR TAGGED UNION APART
+// ============================================================
+
+// match is for enums and tagged unions. For integers and chars there is switch (03-control-flow).
+// match is a statement. It picks the case that fits and runs that case's block.
+// To give a value back, a case uses an explicit `return`, which leaves the function around the match.
+// A case names the variant in parentheses: case (Circle).
+// To read the variant's data, add a block parameter |name|, which is the variant's struct. Use name.field.
+// A variant with no data needs no |name|.
+const area = function(Shape s) f64 {
+    match (s) {
+        case (Circle) |c| { return 3.14 * c.radius * c.radius }
+        case (Rect)   |r| { return r.w * r.h }
+        case (Empty)      { return 0.0 }
+    }
+}
+const a1 = area(s1)                       // 12.56
+const a2 = area(s2)                       // 12.0
+// Every variant must be handled, or there must be a `default`. A missing one is a compile error.
+// Every case must return the function's return type (f64 here).
+// |c| exists only inside its case.
+
+// Every name in a match must be declared too: the subject, and the |name| of a case inside its own case.
+// match (ghost)                          // ERROR: ghost is not declared
+//     case (Circle) |c| { return c.radius }
+// case (Circle) |c| { return 1.0 }       // ERROR in a later case: c exists only inside its own case
+// return radius                          // ERROR: radius is a field of c, it is not a variable on its own
+
+// The same with the Token from section 4, each case binds the data of its own variant.
+const kind = function(Token t) i32 {
+    match (t) {
+        case (Number) |n| { return 1 }    // n.value is f64
+        case (Word)   |w| { return 2 }    // w.text is String
+        case (Symbol) |s| { return 3 }    // s.ch is char
+        case (End)        { return 4 }
+    }
+}
+const k2 = kind(t2)                       // 2, t2 is a Word
+
+// Variants named from outside match by the same name.
+const sides = function(Figure f) i32 {
+    match (f) {
+        case (Square)   |q| { return 4 }
+        case (Triangle) |t| { return 3 }
+        case (Dot)          { return 0 }
+    }
+}
+
+// An enum works the same way, there is nothing to bind.
+const hex = function(Color c) u32 {
+    match (c) {
+        case (Red)   { return 0xFF0000 }
+        case (Green) { return 0x00FF00 }
+        case (Blue)  { return 0x0000FF }
+    }
+}
+
+// default catches every case not listed.
+const is_red = function(Color c) bool {
+    match (c) {
+        case (Red) { return true }
+        default    { return false }
+    }
+}
+
+// A case does not have to return. A case without `return` just does its work and the function carries on.
+
+// match can also be used at the top level, outside any function, like any other statement.
+// There is no function to leave, so a case does its work instead of returning: it assigns to a let
+// declared before the match, or calls something.
+let label = ""
+match (s1) {
+    case (Circle) |c| { label = "circle" }
+    case (Rect)   |r| { label = "rect" }
+    case (Empty)      { label = "nothing" }
+}
+// label is now "circle"
+
+match (t2) {
+    case (Word) |w| { print(w.text) }      // prints hi
+    default         { print("not a word") }
+}
+
+// The same rules hold: every variant must be handled or there must be a default,
+// and |name| exists only inside its case.
+// `return` is only allowed inside a function, at the top level it is an error.
+// To get a value out of a top-level match, assign it to a let declared before it (a const cannot be assigned).
+// const bad = match (s1) ...             // ERROR: match is a statement and gives no value
+
+
+// ============================================================
+// 6. TYPE ALIAS AND NEWTYPE
+// ============================================================
+
+// An alias is a second name for the same type. The two are interchangeable.
+const Id = i32
+Id a = 5
+i32 b = a                                 // OK: Id is i32
+
+// A newtype wraps one value in a struct. It is a different type, so the two cannot be mixed.
+const UserId  = struct { i32 value }
+const OrderId = struct { i32 value }
+const uid = UserId(7)
+const oid = OrderId(7)
+// UserId bad = oid                       // ERROR: OrderId is not UserId
+
+
+// ============================================================
+// 7. GENERICS: A TYPE WITH A TYPE PARAMETER
+// ============================================================
+
+// A type parameter is written in angle brackets after the kind, and is used like any type name.
+// By convention it is one capital letter: T, K, V, E.
+// The parameter is replaced by a real type each time the generic type is used.
+
+const Box = struct<T> {
+    T value
+}
+
+// The type argument can be given...
+const b1 = Box<i32>(1)                    // Box<i32>
+// ...or left out and inferred from the values.
+const b2 = Box(2.5)                       // Box<f64>
+const b3 = Box("hi")              // Box<String>
+Box<u8> b4 = Box(255)                     // explicit type, the literal takes u8
+
+const bv = b1.value                       // 1 (i32)
+// b1.value = 2.5                         // ERROR: value is i32 in Box<i32>
+// Box<i32> bad = b2                      // ERROR: Box<f64> is not Box<i32>
+
+// More than one parameter, and parameters used in nested types.
+const Pair = struct<A, B> {
+    A first
+    B second
+}
+const pr = Pair(first = 1, second = 2.5)  // Pair<i32, f64>
+const pf = pr.first                       // 1 (i32)
+
+const Node = struct<T> {
+    T value
+    Array<T> children
+}
+// A type can use its own name in its own body, so a type can hold more of itself. The field must not hold the type
+// directly, because a value of it could never be created (it would need another value of itself first). It goes through
+// a type that can be empty or can have any number of values: Optional<T>, List<T>, Array<T> or Weak<T>.
+// Two different types cannot hold each other, because the first would have to name the second before it exists.
+const Tree = struct {
+    i32 value
+    List<Tree> children                   // any number of subtrees, an empty List ends the branch
+}
+const leaf = Tree(value = 3, children = [])
+const root = Tree(value = 1, children = [leaf, Tree(value = 2, children = [])])
+const Link = struct {
+    i32 value
+    Optional<Link> next                   // None ends the chain
+}
+const last_link = Link(value = 2, next = Optional.None)
+const first_link = Link(value = 1, next = Optional.Some(last_link))
+// const Loop = struct { i32 value; Loop next }          // ERROR: a Loop could never be created, use Optional<Loop>
+// const Left = struct { Right other }  const Right = struct { Left other }   // ERROR: Right is not declared above Left
+// The methods of a type may name the type in their parameters and results too: const scaled = function(f64 k) Vec.
+
+// Enums have no data, so they take no parameter. Tagged unions do.
+// The type parameters of the union are used by the fields of its variant structs.
+const Either = union<L, R> {
+    const Left  = struct { L value }
+    const Right = struct { R value }
+}
+const e1 = Either<i32, String>.Left(1)
+Either<i32, String> e2 = Either.Right("x")
+// Left and Right are only names for the two variants, a tagged union can have any number of them.
+// The number of type parameters is unrelated to the number of variants: Token (section 4) has four variants
+// and no type parameter, Either has two variants and two type parameters.
+
+// A generic type used without enough information to infer its arguments is an error.
+// const none = Box()                     // ERROR: T cannot be inferred, write Box<i32>()
+
+
+// ============================================================
+// 8. YOUR OWN TYPES IN THE BUILT-IN COLLECTIONS
+// ============================================================
+
+// The built-in collections (Array, List, Set, Map, Tuple) are generic, see 02-data-structures section 8.
+// Their type arguments can be your own types, nested as deep as you like.
+const pts   = [Point(x = 1.0, y = 2.0)]        // List<Point>
+const boxes = [Box(1), Box(2)]                 // List<Box<i32>>
+Map<String, List<Point>> by_name = Map<String, List<Point>>()
+
+// A tagged union can be the element type too, see section 4: List<Shape>.
+
+// A struct is not a key of a Map: a key is a primitive value or a String (02-data-structures section 5). To look things
+// up by what is inside a struct, key by a String or a number that you build from the fields:
+const origin = Point(x = 0.0, y = 0.0)
+// Map<Point, String> bad = Map<Point, String>()          // ERROR: a Map key is a primitive value or a String, not Point
+Map<String, String> place_names = Map<String, String>()
+place_names.set(String.join(String(origin.x), String(origin.y)), "origin")
+const origin_name = place_names.get(String.join(String(0.0), String(0.0)))     // "origin": a String key is found by its text
+
+
+// ============================================================
+// 9. OPTIONAL AND RESULT
+// ============================================================
+
+// Both are ordinary generic tagged unions that come with the language.
+//
+//   const Optional = union<T> {
+//       const Some = struct { T value }
+//       const None = struct { }
+//   }
+//   const Result = union<T, E> {
+//       const Ok  = struct { T value }
+//       const Err = struct { E reason }
+//   }
+//
+// A value that might be missing is an Optional instead of null.
+// null is not a value, it is only the empty ptr<T> (pointers are explained in 08-memory). Anything else that may be
+// absent is an Optional<T>.
+
+// Optional and Result are made the same way: Optional.Some(5), Optional.None, Result.Ok(5), Result.Err(reason).
+// The type arguments are not written, they come from the context: the declared type, the return type of the function,
+// the parameter that receives it, or the field it is stored in. The value itself gives the type for its own side.
+// When there is no context to give a type, write the type arguments: Optional<String>.None, Result<i32, String>.Ok(1).
+const found = Optional.Some(5)            // Optional<i32>: the value gives T
+Optional<String> missing = Optional.None  // None carries no data, the declared type gives T
+// const unknown = Optional.None          // ERROR: nothing says what T is, write Optional<String>.None
+// const half = Result.Ok(1)              // ERROR: nothing says what E is, write Result<i32, String>.Ok(1)
+
+const shown = function(Optional<i32> o) i32 {
+    match (o) {
+        case (Some) |s| { return s.value }
+        case (None)     { return 0 }
+    }
+}
+const sv = shown(found)                   // 5
+
+// A Result is either a value or a reason it failed.
+Result<i32, String> good = Result.Ok(1)
+Result<i32, String> fail = Result.Err("not a number")
+
+const outcome = function(Result<i32, String> r) i32 {
+    match (r) {
+        case (Ok)  |ok|  { return ok.value }
+        case (Err) |err| { return -1 }
+    }
+}
+const ov = outcome(good)                  // 1
+
+// The built-in collections do not give an Optional. Reading a position or a key that is not there throws an Error
+// (02-data-structures, 06-errors), so Optional is for the functions and fields that you write.
+
+
+// ============================================================
+// 10. STRUCT AGAIN: METHODS, AND ALL THE PIECES TOGETHER
+// ============================================================
+
+// A function declared in the body of a struct is a method. It is declared like any member of a type body, the same way
+// a variant is declared inside a union (section 4): const name = function(parameters) [ReturnType] { ... }.
+// (The members of a class are written differently, see 07-classes-and-traits.)
+// It is called on a value: counter.increment().
+// Inside a method, `this` is the value the method was called on.
+// A method may assign to the fields of this. A struct is shared, so every name that refers to it sees the change.
+// Methods are stored once per type, not once per value, so they take no space in a value.
+
+const Counter = struct {
+    i32 value
+    const increment = function() {
+        this.value = this.value + 1
+    }
+    const add = function(i32 n) {
+        this.value = this.value + n
+    }
+
+    const get = function() i32 {                           // the type after the parameters is the return type
+        return this.value
+    }
+}
+
+let counter = Counter(value = 0)
+counter.increment()                       // value is 1
+counter.add(5)                            // value is 6
+const now = counter.get()                 // 6 (i32)
+
+const fixed = Counter(value = 0)
+fixed.increment()                         // OK: const protects the name fixed, the Counter itself can change
+
+// A method can return a new value of its own type or of another type, so calls can chain.
+const Vec = struct {
+    f64 x
+    f64 y
+
+    const scaled = function(f64 k) Vec {                   // does not change this, returns a new Vec
+        return Vec(x = this.x * k, y = this.y * k)
+    }
+    const sum = function() f64 {
+        return this.x + this.y
+    }
+}
+const v2 = Vec(x = 3.0, y = 4.0).scaled(2.0).scaled(0.5)
+
+// A struct can declare its own comparison method. Here two Tags are the same when their names are equal,
+// whatever their ids are. The name is only a convention, the language does not treat it specially.
+const Tag = struct {
+    String name
+    i32 id
+
+    const same_as = function(Tag other) bool {
+        return this.name.equals(other.name)
+    }
+}
+const tags_equal = Tag(name = "x", id = 1).same_as(Tag(name = "x", id = 2))   // true
+
+// Generic structs have generic methods, T is the same T as in the struct.
+const Holder = struct<T> {
+    T value
+
+    const get = function() T {
+        return this.value
+    }
+    const set = function(T v) {
+        this.value = v
+    }
+}
+let h = Holder(1)                         // Holder<i32>
+h.set(2)
+const hv = h.get()                        // 2 (i32)
+// h.set(2.5)                             // ERROR: T is i32 here
+
+// A method belongs to its struct. Enums and unions can have methods in the same way.
+const Light = enum {
+    const Off = 0
+    const On = 1
+    const is_on = function() bool {
+        match (this) {
+            case (On) { return true }
+            default   { return false }
+        }
+    }
+}
+
+
+// ------------------------------------------------------------
+// Finale: one struct that uses an enum, a tagged union, a generic and a method
+// ------------------------------------------------------------
+
+const Priority = enum { const Low = 0; const Medium = 1; const High = 2 }
+
+const Progress = union {
+    const NotStarted = struct { }
+    const Running    = struct { i32 percent }
+    const Done       = struct { String summary }
+    const Failed     = struct { String reason }
+}
+
+const Task = struct {
+    String title
+    Priority priority
+    Progress progress
+    List<String> tags                             // a generic builtin as a field
+    Optional<String> owner                        // an Optional as a field
+    const start = function() {
+        this.progress = Progress.Running(percent = 0)
+    }
+    const finish = function(String summary) {
+        this.progress = Progress.Done(summary)
+    }
+
+    const is_done = function() bool {
+        match (this.progress) {
+            case (Done) |d| { return true }
+            default         { return false }
+        }
+    }
+}
+
+let task = Task(title = "write docs", priority = Priority.High, progress = Progress.NotStarted,
+                tags = List<String>(), owner = Optional.None)
+task.start()
+task.finish("done")
+const finished = task.is_done()                    // true
+
+// A struct that holds a Task gives the same result with nesting.
+const Board = struct {
+    String name
+    List<Task> tasks
+}
+const board = Board(name = "release", tasks = List<Task>())
+
+
+// ============================================================
+// 11. A PATTERN: CHAINING WITH STRUCTS
+// ============================================================
+
+// Chaining is not a separate feature. It is a pattern made of structs and methods: one call continues into the
+// next on the same line, and the type each step returns decides what may follow.
+//   when (a) { A } or_when (b) { B } or_when (c) { C } otherwise { D }
+//
+//   - The first clause is a plain function. Every later clause is a method of the struct that the clause before it gave back.
+//   - A method whose last parameter is a callback takes a block, like any function (04-functions section 10).
+//   - Each step returns a struct that has only the methods that may come next, so the type decides the order.
+//     The same struct again repeats a clause, another struct moves on, a struct with no methods ends the chain.
+//   - A clause starts on the same line as the closing bracket of the clause before it.
+//   - A block is a function of its own, so it hands a result out by changing a let declared before it.
+//   - A struct can only use a name declared above it, so the structs are written from the last step back to the first.
+
+// --- when, or_when, otherwise ---
+//   when       gives AfterWhen    which has or_when and otherwise
+//   or_when     gives AfterWhen    again, so or_when can be written any number of times
+//   otherwise  gives Closed       which has nothing
+
+const Closed = struct { }                       // no methods: nothing can follow otherwise
+
+const AfterWhen = struct {
+    bool taken                                  // whether an earlier block has already run
+
+    // Runs its block when nothing ran before and its condition holds. It gives AfterWhen again, so or_when repeats.
+    const or_when = function(bool condition, function() body) AfterWhen {
+        if (this.taken) { return this }
+        if (condition) {
+            body()
+            return AfterWhen(taken = true)
+        }
+        return this
+    }
+
+    // Runs its block when nothing ran before. It gives Closed, so nothing can follow it.
+    const otherwise = function(function() body) Closed {
+        if (!this.taken) { body() }
+        return Closed()
+    }
+}
+
+const when = function(bool condition, function() body) AfterWhen {
+    if (condition) {
+        body()
+        return AfterWhen(taken = true)
+    }
+    return AfterWhen(taken = false)
+}
+
+let weather = ""
+const temperature = 25
+when(temperature > 30) {
+    weather = "hot"
+} or_when(temperature > 20) {
+    weather = "warm"
+} or_when(temperature > 10) {
+    weather = "cool"                    // or_when as many times as you like
+} otherwise {
+    weather = "cold"
+}
+// weather is "warm"
+
+// Parts can be left out: when alone, when and otherwise, when and any number of or_when.
+// The types reject anything else, because a struct has only the methods that may come next:
+// when (true) { } otherwise { } or_when (false) { }     // ERROR: Closed has no method or_when
+// when (true) { } otherwise { } otherwise { }          // ERROR: Closed has no method otherwise
+// otherwise { }                                        // ERROR: there is no function otherwise, only a method of a struct
+
+// --- fetch, then, on_error ---
+// The same pattern for a request. fetch does the work and gives back a struct that holds the result. Each later clause
+// looks at that result and runs its block only when it applies.
+//   fetch      gives AfterFetch   which has then and on_error
+//   then       gives AfterThen    which has only on_error, then cannot follow then
+//   on_error    gives Closed       which has nothing, so it ends the chain
+// on_error is used instead of catch, because catch is a reserved word.
+
+// A stand-in for a real request: it gives the body, or a reason.
+const download = function(String url) Result<String, String> {
+    return Result.Ok(String.join("body of ", url))
+}
+
+const AfterThen = struct {                      // after then: only on_error may follow
+    Result<String, String> result
+
+    const on_error = function(function(String reason) handler) Closed {
+        match (this.result) {
+            case (Ok)  |ok|  { }
+            case (Err) |bad| { handler(bad.reason) }
+        }
+        return Closed()
+    }
+}
+
+const AfterFetch = struct {                     // after fetch: then or on_error may follow
+    Result<String, String> result
+
+    // Runs its block with the body when the request worked. It gives AfterThen, so only on_error can come next.
+    const then = function(function(String body) handler) AfterThen {
+        match (this.result) {
+            case (Ok)  |ok|  { handler(ok.value) }
+            case (Err) |bad| { }
+        }
+        return AfterThen(result = this.result)
+    }
+
+    // Runs its block with the reason when the request failed. It ends the chain.
+    const on_error = function(function(String reason) handler) Closed {
+        match (this.result) {
+            case (Ok)  |ok|  { }
+            case (Err) |bad| { handler(bad.reason) }
+        }
+        return Closed()
+    }
+}
+
+const fetch = function(String url) AfterFetch {
+    return AfterFetch(result = download(url))
+}
+
+let fetched = ""
+fetch("/items") then |body| {
+    fetched = body                              // runs when the request worked
+} on_error |reason| {
+    fetched = reason                            // runs when the request failed
+}
+
+// then and on_error can be left out, and the types reject anything else:
+// fetch("/items") then |a| { } then |b| { }                // ERROR: AfterThen has no method then
+// fetch("/items") on_error |reason| { } then |body| { }     // ERROR: Closed has no method then
+// fetch("/items") then |body| { }                          // fine: the failure is simply ignored
+// fetch("/items") on_error |reason| { }                     // fine: only the failure is handled
+
+// --- guard, on_error, cleanup: the shape of try / catch / finally for your own code ---
+// A chain does not wait for its last clause: every clause runs as it is reached. A first step that must be protected, like the
+// block of a try, therefore runs at once and keeps what happened in the struct that it gives back. The clauses after it read
+// that and do their part, in the order they are written:
+//   guard      runs its block at once, inside a try, and gives AfterGuard, which holds the error that was thrown, if any
+//   on_error   gives AfterHandled, which has only cleanup. It runs its block with the error, when there is one
+//   cleanup    gives Closed. It runs its block always
+// A struct method whose last parameter is a callback takes a trailing block, as for any function, and what the method gives
+// back decides which clause may follow.
+
+const AfterHandled = struct {                   // after on_error: only cleanup may follow
+    const cleanup = function(function() work) Closed {
+        work()                                  // always runs
+        return Closed()
+    }
+}
+
+const AfterGuard = struct {                     // after guard: on_error or cleanup may follow
+    Optional<IError> failure                    // the error that the block threw, or None
+
+    const on_error = function(function(IError error) handler) AfterHandled {
+        match (this.failure) {
+            case (Some) |thrown| { handler(thrown.value) }
+            case (None)          { }
+        }
+        return AfterHandled()
+    }
+
+    const cleanup = function(function() work) Closed {
+        work()
+        return Closed()
+    }
+}
+
+const guard = function(function() body) AfterGuard {
+    try {
+        body()
+    } catch |e| {
+        return AfterGuard(failure = Optional.Some(e))
+    }
+    return AfterGuard(failure = Optional.None)
+}
+
+let guard_message = ""
+let guard_cleaned = false
+guard {
+    throw(Error(message = "boom", code = 1))    // runs at once, and the error is kept, not thrown on
+} on_error |error| {
+    guard_message = error.message               // "boom"
+} cleanup {
+    guard_cleaned = true                        // runs whether or not there was an error
+}
+
+// The clauses can be left out, and the types reject anything else:
+// guard { } cleanup { } on_error |e| { }       // ERROR: Closed has no method on_error
+// guard { } on_error |e| { } on_error |f| { }  // ERROR: AfterHandled has no method on_error
+// Two differences from the try of the language, which come from clauses running one after the other:
+//   - a block that throws inside on_error stops the chain there, so cleanup is not reached, where a finally always runs;
+//   - an error that no on_error clause handles is kept in AfterGuard and dropped, so write on_error whenever the error matters.
+
+
+// ============================================================
+// 12. A PATTERN: ITERATORS WITH STRUCTS
+// ============================================================
+
+// Looping over the results of a function, one at a time, is not a separate feature either. An iterator is a struct that
+// remembers where it is and has a next method. next gives an Optional: Some with the next value, or None when there are no more.
+const Countdown = struct {
+    i32 current
+
+    const next = function() Optional<i32> {
+        if (this.current <= 0) { return Optional.None }
+        const value = this.current
+        this.current = this.current - 1
+        return Optional.Some(value)
+    }
+}
+
+// A loop asks for the next value until there is none. break ends the loop, as it does inside any match.
+const steps = Countdown(current = 3)
+let sum_of_steps = 0
+loop {
+    match (steps.next()) {
+        case (Some) |s| { sum_of_steps = sum_of_steps + s.value }
+        case (None)     { break }
+    }
+}
+// sum_of_steps is 6: the values were 3, then 2, then 1
+
+// The iterator is a struct, so it is shared like every struct: two names for one Countdown share its position.
+// An iterator over a List keeps the List and a position:
+const ListCursor = struct {
+    List<i32> items
+    usize position
+
+    const next = function() Optional<i32> {
+        if (this.position >= this.items.len()) { return Optional.None }
+        const value = this.items.get(this.position)
+        this.position = this.position + 1
+        return Optional.Some(value)
+    }
+}
+const cursor = ListCursor(items = [10, 20], position = 0)
+const first_item = cursor.next()                   // Some with value 10
+const second_item = cursor.next()                  // Some with value 20
+const third_item = cursor.next()                   // None
+
+// Rules:
+//   - The iterator is an ordinary struct: no new syntax, no interface. The name next is a convention, as in this template.
+//   - The type that next gives back tells the loop when to stop, so the loop reads the Optional with match.
+//   - A for loop takes a collection (03-control-flow section 5). It does not take an iterator struct.

@@ -1,0 +1,573 @@
+// Memory: primitive and non-primitive values, copying and sharing, lifetime, clone, mutability
+// How memory behaves in assignment, function calls, collections, structs and loops
+// Pointers, reference counting and cycles, manual memory, sizes and limits
+//
+// Raga manages memory for you. What you control is whether a name holds its own value or shares one,
+// and when you make a copy. Heap values are reference counted (section 8) and freed the moment nothing refers to them.
+// Pointers (section 7) and manual memory (section 9) exist for special cases, and are never needed for ordinary code.
+
+
+// ============================================================
+// 1. TWO KINDS OF VALUES
+// ============================================================
+
+// A primitive value lives on the stack. Its name holds the value itself.
+//   i8..u128, isize, usize, f32, f64, f128, bool, char, ptr<T>
+// A non-primitive value lives on the heap. Its name holds only a reference to it.
+//   String, Array, List, Tuple, Set, Map, Optional, Result, and every struct, enum, union and class object
+//
+// The capital letter of a type name says which one it is: lowercase is a primitive, a capital letter is a
+// non-primitive (01-basics section 10). A struct, an enum member or a class object is shared like a List is.
+
+const count = 5                           // the name holds 5
+const text = "hello"              // the name holds a reference, the text lives on the heap
+// A struct, an enum member or a class object works the same way: the name holds a reference, see section 2.
+
+
+// ============================================================
+// 2. ASSIGNMENT: COPY OR SHARE
+// ============================================================
+
+// Assigning a primitive copies it. The two names are independent.
+const a = 10
+let b = a                                 // b is its own copy of 10
+b = 20                                    // a is still 10
+
+// Assigning a non-primitive value copies only the reference. Both names refer to the same value.
+const left = [1, 2, 3]
+const right = left                        // one List, two names
+right.push(4)                             // left sees it too: 1, 2, 3, 4
+const alias = left == right               // true: == on a non-primitive value asks if it is the same value
+
+// A struct is a non-primitive value too, so assigning it shares it. There is one Box and two names.
+const Box = struct {
+    i32 size
+    List<i32> items
+}
+const box1 = Box(size = 1, items = [1, 2])
+let box2 = box1                           // not a copy: box2 and box1 refer to the same Box
+box2.size = 9                             // box1.size is 9 too
+box2.items.push(3)                        // and box1.items has the 3 as well
+
+// Rebinding a name never changes the value the old name refers to.
+let list1 = [1]
+const list2 = list1
+list1 = [2]                           // list1 now refers to a new List, list2 still has 1
+
+
+// ============================================================
+// 3. CLONE: A SEPARATE COPY ON PURPOSE
+// ============================================================
+
+// Every non-primitive type has a clone method, and so has every struct. clone makes a separate value.
+const original = [1, 2, 3]
+const copy = original.clone()
+copy.push(4)                              // original is unchanged
+const same_value = original == copy        // false: they are two values
+
+// clone copies one level. The new collection is separate, but when its elements are non-primitive values
+// they are still the same elements as in the original.
+const nested = [[1], [2]]
+const shallow = nested.clone()            // a new outer List holding the same two inner Lists
+shallow.get(0).push(9)                    // the inner List is shared: nested.get(0) is now 1, 9
+
+// To copy every level, clone the inner values as well.
+const deep = List<List<i32>>()
+for (nested) |inner| {
+    deep.push(inner.clone())
+}
+deep.get(0).push(5)                       // nested is unchanged
+
+// A struct clone copies its primitive fields and clones its non-primitive fields, so the copy shares nothing.
+const box3 = box1.clone()
+box3.items.push(7)                        // box1.items is unchanged
+
+// String is immutable, so sharing one is always safe and there is nothing to change.
+const name1 = "ann"
+const name2 = name1                       // safe: no one can change the text in place
+const name3 = name1.upper()               // upper makes a new String, name1 is unchanged
+
+
+// ============================================================
+// 4. CONST, LET AND MUTABLE VALUES
+// ============================================================
+
+// const protects the name: it cannot refer to another value, and a primitive cannot change.
+// It does not protect a non-primitive value, which can still be changed through any name that refers to it.
+const fixed_list = [1, 2]
+fixed_list.push(3)                         // allowed: the List changes, the name still refers to it
+// fixed_list = [9]                    // ERROR: a const name cannot be rebound
+
+const fixed_box = Box(size = 1, items = List<i32>())
+fixed_box.size = 2                         // allowed: const protects the name fixed_box, the Box can change
+fixed_box.items.push(1)                    // allowed too
+// fixed_box = Box(size = 0, items = List<i32>())   // ERROR: a const name cannot be rebound
+
+// What can change in place:
+//   String   nothing, it is immutable
+//   Array    an element can be replaced with set, the size is fixed
+//   Tuple    a slot can be replaced with set, the size is fixed
+//   List     push, pop, shift, unshift, set
+//   Set      add, remove
+//   Map      set, remove
+//   struct   its fields
+
+// To keep a value from changing, share a clone or an immutable value (a String), not the original.
+
+
+// ============================================================
+// 5. FUNCTIONS AND MEMORY
+// ============================================================
+
+// Arguments follow the same two rules. A primitive is copied into the parameter.
+// A non-primitive value is shared, so a function can change what its caller passed.
+const add_ten = function(List<i32> items) {
+    items.push(10)                        // changes the caller's List
+}
+const numbers = [1, 2]
+add_ten(numbers)                           // numbers is now 1, 2, 10
+add_ten(numbers.clone())                   // numbers is unchanged, the clone changed
+
+const bumped = function(i32 n) i32 {
+    let local = n                         // n is a copy of the caller's number
+    local = local + 1
+    return local
+}
+let level = 1
+const next = bumped(level)                // 2, level is still 1
+
+// A function returns a primitive by copying it, and a non-primitive value by sharing it.
+// A non-primitive value created inside a function stays alive after the call, because the caller now refers to it.
+const make_list = function() List<i32> {
+    const made = [1, 2, 3]
+    return made
+}
+const kept = make_list()                   // still valid: kept refers to the List made inside
+
+// A default parameter value is created again on every call, so calls never share it.
+const collect = function(i32 item, List<i32> into = List<i32>()) List<i32> {
+    into.push(item)
+    return into
+}
+const c1 = collect(1)                     // 1
+const c2 = collect(2)                     // 2, not 1, 2: each call got a new List
+// A struct field default is worked out again for every value, like a parameter default. Each List<i32>() written below
+// makes its own List, so the two structs do not share one.
+const b1 = Box(size = 0, items = List<i32>())
+const b2 = Box(size = 0, items = List<i32>())
+b1.items.push(1)                          // b2.items is still empty
+
+
+// ============================================================
+// 6. LIFETIME
+// ============================================================
+
+// A primitive lives until the end of the block it was declared in.
+{
+    const short = 1
+    const also_short = Box(size = 2, items = List<i32>())
+}
+// short is gone here. also_short is a name for a Box: the name is gone, and the Box is freed because nothing else refers to it.
+
+// A non-primitive value lives as long as at least one name, field, element or parameter still refers to it.
+// When the last reference is gone, the value is freed right away. This is reference counting, see section 8.
+let holder = [1, 2, 3]                // the List lives: holder refers to it
+holder = [4]                          // the first List has no references left and is freed
+
+// A name going out of scope drops its reference, the value lives on if anything else refers to it.
+const outer_ref = List<i32>()
+{
+    const inner_ref = [1, 2]
+    outer_ref.push(i32(inner_ref.len()))         // the inner List is freed at the end of the block: no one else refers to it
+}
+
+// A reference kept inside another value counts too.
+const owner = List<List<i32>>()
+{
+    const member = [1]
+    owner.push(member)                    // owner now refers to the List, so it outlives member
+}
+const survivor = owner.get(0)             // still valid
+
+// Temporary values are freed at the end of the statement that created them.
+const length = [1, 2, 3].len()        // the List lived only for this statement
+
+// A loop name is a new name on every pass and is gone at the end of each pass.
+for (range(0, 3)) |pass| {
+    const made = [pass]               // created and freed on every pass
+}
+
+
+// A variable that a function declared inside the block uses (a closure, 04-functions section 15) is the one exception to
+// "a primitive lives until the end of its block". The compiler moves it to the heap, in a small cell that the block and
+// every function that uses the variable share. The cell is counted like any other heap value, so the variable lives as
+// long as the last function that uses it, also after the block or the function that declared it has ended:
+const make_total = function() function(i32) i32 {
+    let total = 0                         // a primitive, but the function below uses it
+    const add = function(i32 amount) i32 {
+        total = total + amount
+        return total
+    }
+    return add                            // total is still alive, it now belongs to add
+}
+const my_total = make_total()
+const t1 = my_total(5)                    // 5
+const t2 = my_total(7)                    // 12
+// Nothing in the code shows the move. A variable that no function uses stays on the stack and costs nothing.
+// &total of such a variable is a pointer to the cell, and it is valid as long as the cell lives.
+
+
+// ============================================================
+// 7. POINTERS
+// ============================================================
+
+// A pointer holds the address of a variable. Its type is ptr<T>, with the type of what it points to in angle brackets,
+// like every type argument. ptr is a primitive type, so its name is lowercase and it is a stack value: copying a pointer copies the address.
+// The two operations are:
+//   &variable      the address of a variable, a ptr<T>     (prefix &, as in all three)
+//   pointer.*      the value the pointer points to, a T    (postfix .*)
+// The dereference is written after the pointer, like a field access, so it chains left to right
+// and cannot be mistaken for a multiplication: p.* reads "the value of p".
+i32 target = 7
+ptr<i32> p = &target                      // explicit pointer type
+const q = &target                         // inferred: ptr<i32>
+const seven = p.*                         // 7
+p.* = 8                                   // target is now 8, p.* can be assigned like a variable
+p.* += 1                                  // target is now 9, the compound operators work too
+const nine = q.*                          // 9, q points to the same variable
+// p.* = 2.5                              // ERROR: the pointer is a ptr<i32>, 2.5 is an f64
+// ptr<f64> bad = &target                 // ERROR: &target is a ptr<i32>
+// const bad = &(1 + 2)                   // ERROR: only a variable has an address, not a temporary value
+
+// & before a name is the address-of operator. Between two values it is still the bitwise and:
+//   const mask = flags & 1               // bitwise and
+//   const where = &flags                 // address-of
+
+// A pointer must be initialized like any variable. null is the empty pointer, like C's NULL.
+// It can be given to any ptr<T>, and only to a ptr<T>: null is not a value of any other type.
+ptr<i32> empty = null
+const is_empty = empty == null             // true
+// i32 count = null                       // ERROR: only a ptr<T> can be null, use Optional<T> for a value that may be absent
+// const bad = null                       // ERROR: null has no type of its own, write ptr<i32> p = null
+// empty.*                                // ERROR at run time: a null pointer cannot be dereferenced, it throws an Error (06-errors)
+
+// == and != on pointers compare addresses, like == on any value compares what the name holds.
+const same = p == q                       // true: both hold the address of target
+i32 other = 9
+const different = p == &other             // false: another variable, even with the same value
+
+// A pointer to a variable that holds a struct points at the variable, as for any non-primitive value (below).
+// A field is read and written through the pointer with a dot, and .* gives the Spot the variable refers to.
+const Spot = struct {
+    f64 x
+    f64 y
+}
+let spot = Spot(x = 1.0, y = 2.0)
+const sp = &spot                          // ptr<Spot>
+sp.x = 5.0                                // changes spot.x, no .* needed for a field
+const sx = sp.x                           // 5.0
+sp.* = Spot(x = 9.0, y = 0.0)             // spot now refers to a new Spot
+const spot_copy = sp.*.clone()             // a separate Spot, changing spot_copy leaves spot alone
+// sp points at the variable spot. To give C the address of the fields of the Spot, use spot.raw():
+// every struct and every untagged union has the layout of a C struct (section 10), and two methods are generated for it,
+// like clone:
+//   raw()           a ptr<u8>, C's void *: the address of the fields, valid while the struct is alive
+//   Type.fromRaw(p) a new struct made by copying the fields from such an address
+const raw_spot = spot.raw()                // ptr<u8>: where the fields of spot are, in C layout, to give to a C function
+const from_c = Spot.fromRaw(raw_spot)      // a new Spot copied from those bytes, a separate value
+// A C function that takes a struct by value gets the fields copied, as the C calling convention says.
+// raw() is not &spot: &spot is a pointer to the variable spot, raw() is the address of the fields.
+
+// A function that takes a pointer can change a variable of its caller, which a plain parameter cannot (section 5).
+const increment = function(ptr<i32> counter) {
+    counter.* = counter.* + 1
+}
+let hits = 0
+increment(&hits)
+increment(&hits)                          // hits is 2
+
+// A pointer can point to a pointer. Each .* peels off one level.
+ptr<ptr<i32>> pp = &p
+const via_two = pp.*.*                     // 9, the value of target
+
+// A pointer to a variable that holds a non-primitive value points at the variable, not at the non-primitive value.
+// Assigning through it changes which value the variable refers to.
+let words = ["a"]
+ptr<List<String>> wp = &words
+wp.* = ["b"]                  // words now refers to a new List
+wp.*.push("c")                    // .* gives the List, which is then changed in place
+
+// Rules:
+//   - There is no pointer arithmetic and no indexing through a pointer: p + 1 and p[0] are errors.
+//   - A pointer to a const variable cannot be made: &const_name is an error, because the value must not change.
+//   - A pointer does not keep anything alive. It is not a reference, a non-primitive value is freed when nothing else refers to it.
+//   - A pointer can be converted only by an explicit cast, like every other conversion:
+//       ptr<u8>(p)      from a ptr<i32> to a ptr<u8>, which is C's void *
+//       usize(p)        the address as a number
+//       ptr<i32>(n)     a number as an address, never checked
+// const bad = p + 1                      // ERROR: no pointer arithmetic
+// const fixed = 5
+// const bad = &fixed                     // ERROR: fixed is const
+
+// A pointer to a variable is only valid while that variable is alive. After its block ends the variable is gone
+// and the pointer dangles. Following Raga's rule for C, using a dangling pointer is undefined, it is not checked.
+// The obvious case is rejected at compile time:
+// const leak = function() ptr<i32> {
+//     i32 local = 1
+//     return &local                      // ERROR: the address of a local variable cannot be returned
+// }
+// Storing the address somewhere that outlives the block is not checked and is your responsibility:
+ptr<i32> outer = null
+{
+    i32 inner = 5
+    outer = &inner                        // outer now holds an address that is valid only inside this block
+}
+// outer.*                                // undefined: inner is gone
+
+// C types: a C pointer is a ptr<T> of the matching type, and a void * is a ptr<u8>.
+//   int *          ptr<i32>        char *         ptr<i8>        void *         ptr<u8>
+
+
+// ============================================================
+// 8. REFERENCE COUNTING AND CYCLES
+// ============================================================
+
+// Every non-primitive value keeps a count of the references to it: names, fields, elements and parameters.
+// The count goes up when a reference is made (an assignment, a push, a call) and down when one goes away
+// (a name leaves its block, a name is rebound, an element is removed).
+// When the count reaches zero the value is freed at that very point of the program, not at some later time.
+let ref1 = [1, 2]                     // count 1
+const ref2 = ref1                         // count 2
+const holder2 = List<List<i32>>()
+holder2.push(ref1)                        // count 3, the element is a reference too
+ref1 = [3]                            // the first List drops to 2, ref1 now refers to a new List
+holder2.pop()                             // drops to 1, only ref2 still refers to it
+// when ref2 leaves its block the count reaches 0 and the List is freed
+
+// Because values are freed as soon as the last reference goes, there is no waiting and no pause.
+// A non-primitive value is freed, and its elements are released with it, so a List of Lists frees all of them.
+
+// A problem comes from cycles: values that refer to each other keep each other's count above zero,
+// so none of them is ever freed. That is a memory leak. It is not an error and nothing reports it.
+// A cycle is easy to make by accident: a team list that holds members that refer back to the team list.
+//
+//   const Member = struct {
+//       String name
+//       List<Member> team                 // a strong reference to the team list
+//   }
+//   const team = List<Member>()
+//   team.push(Member(name = "ann", team = team))    // the list holds a Member that refers to the list
+//   // the count of team never reaches 0: the list is leaked
+//
+// The fix is a weak reference. Weak<T> refers to a non-primitive value without counting: it does not keep it alive.
+const Member = struct {
+    String name
+    Weak<List<Member>> team               // weak: does not keep the team alive
+}
+const squad = List<Member>()
+squad.push(Member(name = "ann", team = Weak(squad)))    // squad is not counted by the member
+// when squad leaves its block the count reaches 0, the List is freed and the Member with it
+
+// Weak<T> has two methods. get gives an Optional<T>: Some while the value is alive, None after it was freed.
+// alive tells the same as a bool.
+const first = squad.get(0)
+match (first.team.get()) {
+    case (Some) |s| { print(s.value.len()) }      // the team is still alive here, s.value is a strong reference for this case
+    case (None)     { print("team is gone") }
+}
+const still_there = first.team.alive()     // true while squad exists
+
+// Rules for Weak:
+//   - It can only refer to a non-primitive value (String, a collection, a struct, a class object). Weak(5) is an error.
+//   - It is a non-primitive value that holds the weak handle. Cloning a struct with a Weak field copies the handle, not its target.
+//   - get gives a strong reference only inside the case that matched it, so the value cannot be freed while you use it.
+// const bad = Weak(5)                    // ERROR: a primitive is not a non-primitive value, nothing to refer to weakly
+
+// Rule of thumb for structures with parents and children: the owner refers to its parts strongly,
+// and a part refers back to its owner weakly. Then nothing forms a cycle of strong references.
+
+
+// ============================================================
+// 9. MANUAL MEMORY
+// ============================================================
+
+// Almost all code never needs this: lists, strings and the rest manage themselves. Manual memory is for
+// the rare case that needs memory with no reference counting at all.
+// It is made of three functions, and the memory it gives is not counted and never freed by Raga:
+//   alloc<T>(count)   allocates room for count values of the primitive type T, filled with zeros, and gives a ptr<T>
+//   p.at(i)           the pointer to element i of what p points to, without any check of the position
+//   free(p)           gives the memory back
+// T must be a primitive type: non-primitive values already manage themselves.
+// There is no pointer arithmetic, p.at(i) is how you reach the other elements.
+
+const buffer = alloc<u8>(4)               // four zeroed bytes, a ptr<u8>
+buffer.at(0).* = 65
+buffer.at(1).* = 66
+const second = buffer.at(1).*             // 66
+free(buffer)                              // the memory is released
+
+// One primitive value, on the memory that is managed by hand.
+const manual = alloc<i64>()               // count defaults to 1, a ptr<i64> that holds 0
+manual.* = 3
+free(manual)
+
+// alloc fails by throwing an Error when there is no memory left, see 06-errors.
+// Use try / finally so the memory is freed on every path:
+const block = alloc<i32>(100)
+try {
+    block.at(0).* = 1
+} finally {
+    free(block)
+}
+
+// Rules:
+//   - Memory from alloc is freed only by free, exactly once. If it is never freed it is a leak.
+//   - free(null) does nothing, like in C.
+//   - Freeing twice, or using a pointer after free, is undefined. Nothing is checked, as for any dangling pointer.
+//   - Only memory from alloc can be freed. free(&x) of a variable is an error, a pointer from & is not allocated.
+//   - p.at(i) does not check i, going past the end is undefined, like indexing past the end in C.
+//   - alloc and free are not for non-primitive types: alloc<List<i32>>() is an error.
+// free(&target)                          // ERROR: target is a variable, it was not allocated
+// const bad = alloc<List<i32>>()         // ERROR: a List manages itself
+
+
+// ============================================================
+// 10. SIZES AND LIMITS
+// ============================================================
+
+// sizeof<T>() gives the size of a type in bytes as a usize, and alignof<T>() its alignment.
+// A primitive has a fixed size known at compile time:
+//   i8 1, i16 2, i32 4, i64 8, i128 16, f32 4, f64 8, bool 1, char 4, isize and usize and ptr<T> as wide as a pointer
+//   an enum is the size of an i32
+//   a struct follows the C layout: the fields in the order they are written, each at a multiple of its alignment,
+//   and the whole struct padded to a multiple of its largest alignment
+//   a tagged union is as large as its biggest variant plus the tag that says which variant it holds
+// For a struct, an enum or a union, sizeof is the size of the object on the heap. The variable that holds it holds a
+// reference as wide as a pointer. Every struct and untagged union has this C layout, so raw() can give C its address. String and the collections grow, so they have no fixed size and no sizeof.
+const size_of_i32 = sizeof<i32>()           // 4
+const size_of_spot = sizeof<Spot>()         // 16: two f64
+
+// Padding: the fields are never reordered, so their order changes the size.
+const Loose = struct {
+    u8 flag
+    i32 count
+    u8 mark
+}
+const Tight = struct {
+    i32 count
+    u8 flag
+    u8 mark
+}
+const loose_size = sizeof<Loose>()         // 12: 1 + 3 padding + 4 + 1 + 3 padding
+const tight_size = sizeof<Tight>()         // 8: 4 + 1 + 1 + 2 padding
+const loose_align = alignof<Loose>()       // 4
+
+// Limits:
+//   - The stack has a fixed size, set by the system (usually a few megabytes). A function that calls itself
+//     without ever stopping overflows it, and the program ends with an error message. That cannot be caught.
+//   - The heap is limited by the memory of the machine. Running out of it, in alloc or when a collection grows,
+//     throws an Error that can be caught, see 06-errors.
+//   - The integer types have fixed sizes, so a value that does not fit is truncated by a cast and never grows,
+//     see 01-basics.
+// const forever = function(i32 n) i32 { return forever(n + 1) }   // runs until the stack is full
+
+
+// ============================================================
+// 11. A VIEW INTO AN ARRAY: A SLICE STRUCT
+// ============================================================
+
+// A slice is a part of an Array or a List that is looked at in place, without copying it. It is not a built-in type:
+// it is a struct that holds the Array and the part it shows. Because an Array is a non-primitive value, the struct holds a
+// reference to the same Array, so the slice and the Array always agree.
+const Slice = struct {
+    Array<i32> source
+    usize start
+    usize length
+
+    const get = function(usize index) i32 {
+        return this.source.get(this.start + index)
+    }
+    const len = function() usize {
+        return this.length
+    }
+}
+
+const samples = {10, 20, 30, 40, 50}
+const middle = Slice(source = samples, start = 1, length = 3)     // 20, 30, 40
+const middle_first = middle.get(0)                 // 20
+const middle_len = middle.len()                    // 3
+samples.set(1, 99)
+const middle_changed = middle.get(0)               // 99: the slice shares the Array, it holds no copy of the samples
+
+// Rules:
+//   - A slice is a struct, so it follows every rule of a struct, and it keeps its Array alive (section 8).
+//   - To get a separate part instead, copy the samples into a new Array or List: the slice and the copy then do not agree.
+//   - Nothing checks the part against the Array: get with an index outside the part reads what the Array has there, or throws
+//     when the Array has no such position.
+
+
+// ============================================================
+// 12. COMMON MISTAKES
+// ============================================================
+
+// Each mistake is shown with what happens, and with the way that does what was meant.
+
+// 1. Expecting a copy when you get a shared value.
+const cm_items = [1, 2]
+const cm_not_backup = cm_items                    // not a backup, the same List
+const cm_backup = cm_items.clone()                // a backup
+cm_items.push(3)
+const cm_backup_len = cm_backup.len()             // 2: the clone did not change
+const cm_shared_len = cm_not_backup.len()         // 3: it is the same List as cm_items
+
+// 2. Changing a List while looping over it. It throws an Error (03-control-flow section 10), so loop over a clone.
+const cm_queue = [1, 2, 3]
+for (cm_queue.clone()) |cm_n| {
+    if (cm_n == 2) { cm_queue.push(9) }           // fine: the loop goes over the clone, not over cm_queue
+}
+// for (cm_queue) |cm_n| { cm_queue.push(cm_n) }     // throws an Error: the List changes while the loop goes over it
+
+// 3. Putting the same List in two places and changing one of them.
+const cm_row = [0, 0]
+const cm_grid_bad = [cm_row, cm_row]              // two entries, one List
+cm_grid_bad.get(0).set(0, 5)
+const cm_both_changed = cm_grid_bad.get(1).get(0) // 5: changing one entry changed the other
+const cm_grid_ok = [cm_row.clone(), cm_row.clone()]   // two separate rows
+
+// 4. Comparing with == and expecting equal contents. == on a non-primitive value asks if it is the same value.
+const cm_left = [1]
+const cm_right = [1]
+const cm_equal = cm_left == cm_right              // false: two Lists
+const cm_parts_equal = cm_left.get(0) == cm_right.get(0)    // true: compare the parts yourself
+
+// 5. Relying on a struct copy to protect a List inside it. The new struct shares the List, clone the List too.
+const cm_box = Box(size = 1, items = [7])
+const cm_second_bad = Box(size = cm_box.size, items = cm_box.items)           // the same List inside
+const cm_second_ok = Box(size = cm_box.size, items = cm_box.items.clone())    // its own List
+cm_box.items.push(8)
+const cm_bad_len = cm_second_bad.items.len()      // 2: it saw the change
+const cm_ok_len = cm_second_ok.items.len()        // 1: it did not
+
+// 6. Keeping a pointer to a variable that has gone out of scope, see section 7.
+//      returning &local from a function is a compile error, and a pointer stored elsewhere is not checked.
+// 7. Expecting an assignment through a pointer to a heap variable to change the List itself: it changes the variable's reference.
+//      p.* = [9] makes the variable refer to a new List, the old List is not touched.
+// 8. Making a cycle of strong references and expecting it to be freed, see section 8. Make the way back a Weak.
+
+// 9. Forgetting free on memory from alloc, or calling it twice, see section 9. Use try / finally.
+const cm_block = alloc<i32>(4)
+try {
+    cm_block.at(1).* = 7
+} finally {
+    free(cm_block)                                // once, whatever happened inside the try
+}
+
+// 10. Expecting sizeof of a struct to include what its heap fields hold: it is the size of the struct itself, and a field that
+//     holds a List or a String is only one reference. The number of elements does not change it.
+
+// 11. Assuming a struct is as small as its fields add up: padding is added, see section 10.
+const PaddedPair = struct {
+    u8 flag
+    u32 count
+}
+const cm_padded_size = sizeof<PaddedPair>()       // 8, not 5: three bytes of padding come after flag

@@ -1,0 +1,624 @@
+// Syntax, tokens, keywords, comments
+// Variables, constants, initialization, scope, lifetime
+// Primitive and non-primitive types, String, type system, type inference
+// Literals, operators, expressions, statements
+// Type conversion / casting / coercion
+// The collections Array, List, Tuple, Set and Map are in 02-data-structures.
+
+
+// ============================================================
+// 1. SYNTAX, TOKENS, KEYWORDS, COMMENTS
+// ============================================================
+
+// A line comment runs from `//` to the end of the line.
+// There are no block comments.
+
+const x = 1       // a trailing comment
+let   y = 2; let z = 3    // `;` separates statements on one line, a newline also ends one
+
+// Keywords (reserved, cannot be used as names):
+//   const let function method class interface trait struct union enum attribute
+//   if elif else for while loop break continue return
+//   try catch finally throw match switch case default
+//   extends implements use
+//   true false null this super
+//   get set                                                                (special only as the parts of an accessor in a class body)
+//   call                                                                   (special only as the runtime part of an attribute, 09-attributes-and-reflection)
+//   constructor destructor                                                 (special method names of a class)
+//
+// Tokens:
+//   identifiers   letters, digits and `_`, not starting with a digit  -> my_var, count2
+//   literals      1  0xFF  2.5  true  'a'  "text"  {1, 2}  [1, 2]  (1, 2.5)   (see section 6)
+//   punctuation   ( ) { } [ ] | , . ; ...
+//   operators     + - * / % == != < <= > >= && || ! & | ^ ~ << >> = += ...  (see section 7)
+
+
+// ============================================================
+// 2. VARIABLES: const AND let
+// ============================================================
+
+// There are two ways to declare a variable:
+//
+//   inferred   const name = value       the type comes from the value (section 3)
+//              let   name = value
+//
+//   explicit   type name = value        you write the type first, like C (section 4)
+//
+// A declaration starts with `const`, `let` or a type, never a mix: `const u8 x = 1` is an error.
+// `const` cannot be rebound. `let` and a bare `type name` can be rebound.
+
+const a = 1                // const: a is fixed
+let   counter = 0          // let: can be reassigned
+counter = counter + 1
+// a = 2                   // ERROR: cannot assign to const
+
+// A binding must be initialized when it is declared.
+// let late                // ERROR: no uninitialized variables
+
+
+// ============================================================
+// 3. PRIMITIVES: PLAIN VALUES, STORED ON THE STACK
+// ============================================================
+
+// A primitive is a plain value stored on the stack. Its type name starts with a lowercase letter.
+// Every non-primitive type has a name that starts with a capital letter: String, Array, List, Map, Set, Tuple,
+// and every struct, enum, union, class, interface and trait you declare (05-structs-enums-unions, 07-classes-and-traits).
+// The built-in non-primitive types have literals too: "abc", {1, 2, 3}, [1, 2, 3], (1, 2.5), see sections 6 and 10.
+// Write the literal directly and the type is inferred.
+
+const n  = 1               // inferred as i32   (default integer type)
+const f  = 2.5             // inferred as f64   (default float type)
+const ok = true            // inferred as bool
+const ch = 'a'             // inferred as char  (one Unicode scalar value)
+// There is no null value. Every variable always holds a value of its type.
+// (null only exists as the empty pointer, which is explained in 08-memory.)
+
+// Inference defaults:
+//   whole-number literal   -> i32
+//   decimal literal        -> f64
+//   true / false           -> bool
+//   'x'                    -> char
+//   "text"                 -> String
+//   {1, 2}  [1, 2]  (1, 2.5)   -> Array<i32>, List<i32>, Tuple<i32, f64> (section 6)
+// These are the types a literal gets when nothing else decides. The context can decide otherwise (section 6).
+// A literal that does not fit the type it ends up with is a compile error.
+// const huge = 3000000000     // ERROR: does not fit in i32, write i64 huge = 3000000000
+
+
+// ============================================================
+// 4. EXPLICIT TYPES: type name = value
+// ============================================================
+
+// To pick a type yourself, write the type before the name, like C.
+// The literal on the right takes that type. It must fit, or it is a compile error.
+// A bare `type name = value` can be reassigned. `const` and a type cannot be combined.
+//
+// Do not confuse this with a cast. `u8(x)` converts an existing value (section 9),
+// a declaration is `u8 x = 5`.
+
+// --- integers: signed (i) and unsigned (u) ---
+//   bits            signed   unsigned
+//   8-bit           i8       u8
+//   16-bit          i16      u16
+//   32-bit          i32      u32
+//   64-bit          i64      u64
+//   128-bit         i128     u128
+//   pointer-sized   isize    usize     (as wide as a pointer on the target machine)
+
+i8 i8v        = -128
+u8 u8v        = 255
+i16 i16v      = -32768
+u16 u16v      = 65535
+i32 i32v      = -2147483648
+u32 u32v      = 4294967295
+i64 i64v      = -9223372036854775808
+u64 u64v      = 18446744073709551615
+i128 i128v    = 170141183460469231731687303715884105727
+u128 u128v    = 340282366920938463463374607431768211455
+isize isizev  = -1              // 64 bits on a 64-bit machine
+usize usizev  = 0               // use for sizes and indexes
+
+// --- floating point ---
+f32 f32v   = 1.5                // 32-bit IEEE 754 (C float)
+f64 f64v   = 1.5                // 64-bit IEEE 754 (C double)
+f128 f128v = 1.5                // 128-bit (C long double on most targets)
+
+// --- bool, char ---
+bool bv    = true
+char cv    = 'z'                // a Unicode scalar value, 32 bits
+
+// --- const or a type, not both ---
+const max_byte = 255             // const: fixed, the type is inferred (i32)
+u8 level      = 255             // typed: u8, can be reassigned
+// const u8 bad = 255           // ERROR: use const (inferred) or u8 (explicit), not both
+// max_byte = 1                  // ERROR: cannot assign to const
+
+// --- a variable keeps the type it was declared with ---
+u8 small = 250
+small = 251                     // OK: still u8
+// small = 300                  // ERROR: does not fit in u8
+// small = i32(1)               // ERROR: i32 is not u8, convert first: small = u8(i32(1))
+
+// --- an explicit type must match the value, there is no silent conversion ---
+i32 whole = 5
+// i64 wide = whole             // ERROR: whole is i32, write: i64 wide = i64(whole)
+i64 wide = i64(whole)           // OK: an explicit cast
+// f32 half = 2                 // ERROR: 2 is a whole number, write 2.0
+f32 half = 2.0
+
+// --- uninitialized declarations are still not allowed ---
+// u8 late                      // ERROR: give it a value
+
+// ============================================================
+// 5. C TYPES
+// ============================================================
+
+// There are no separate C type names. Every C type is one of the builtin types above,
+// so use the builtin type directly, also when calling C code.
+// The sizes follow a 64-bit Linux target (LP64) and change with the platform.
+//
+//   C type                Raga type
+//   --------------------  ---------
+//   _Bool / bool          bool
+//   char / signed char    i8
+//   unsigned char         u8
+//   short                 i16
+//   unsigned short        u16
+//   int                   i32
+//   unsigned int          u32
+//   long                  i64
+//   unsigned long         u64
+//   long long             i64
+//   unsigned long long    u64
+//   float                 f32
+//   double                f64
+//   long double           f128
+//   size_t                usize
+//   ssize_t / ptrdiff_t   isize
+//   intptr_t              isize
+//   uintptr_t             usize
+//   wchar_t               char
+//   void *                ptr<u8>      (pointers are explained in 08-memory)
+//   struct S *            ptr<u8>      the address of a Raga struct, from its raw() method (05-structs-enums-unions)
+
+i32 cint     = 10               // C int
+u64 cul      = 10               // C unsigned long
+usize clen   = 64               // C size_t
+i8 first     = 65               // C char
+
+// ============================================================
+// 6. LITERALS
+// ============================================================
+
+// integers, written in several bases
+const dec = 255
+const hex = 0xFF               // base 16
+const bin = 0b1111_1111        // base 2
+const oct = 0o377              // base 8
+const big = 1_000_000          // `_` is ignored, use it to group digits
+
+// floats
+const pi  = 3.14159
+const sci = 1.5e3              // 1500.0
+const tiny = 2.5e-3            // 0.0025
+
+// booleans, characters
+const yes = true
+const no  = false
+const chr = 'x'
+const nl  = '\n'                // escapes: \n \t \r \\ \' \0
+
+
+// Text, and the collections, have a literal too. Each literal is the same as the constructor of its type:
+//   "abc"            String   the same as String("abc"), escapes: \n \t \r \\ \" \0
+//   {1, 2, 3}        Array    the same as Array(1, 2, 3), and {} is Array()
+//   [1, 2, 3]        List     the same as List(1, 2, 3), and [] is List()
+//   (1, 2.5)         Tuple    the same as Tuple(1, 2.5), two or more values, and () is Tuple()
+//   Set and Map      have no literal, write Set(1, 2, 3) and Map("a", 1)
+// The contents decide the element type, so {1, 2.5} is an error, use (1, 2.5) for mixed types.
+// An empty literal has no contents to decide, so its type comes from the context: List<i32> xs = [], or write
+// List<i32>(). const xs = [] is an error, nothing says what the elements are.
+// Where a literal can be read as something else: `(x)` with one value is a grouping, not a Tuple, so a Tuple of one
+// value is written Tuple(x). A `{` where a value is expected starts an Array, anywhere else it starts a block.
+// A `[` at the start of a line is an attribute, anywhere else it is a List.
+const msg = "line one\nline two"
+
+
+// A literal takes the type that the context expects, as long as the kind matches:
+//   - a whole-number literal can be any integer type, if the value fits
+//   - a decimal literal can be any float type
+//   - a whole-number literal is never a float, and a decimal literal is never an integer
+// The context is the type written in a declaration, the other side of an operator or comparison, or the parameter that
+// receives it. With no context, a whole-number literal is an i32 and a decimal literal is an f64 (section 3).
+// Write the type before the name to choose the type: u8 x = 0xFF, f32 y = 2.5, i64 z = 1_000_000
+usize item_count = 3
+const is_three = item_count == 3           // 3 is a usize here, because item_count is one
+u8 byte_value = 250
+const bumped = byte_value + 5             // 5 is a u8, the result 255 fits
+const wide_sum = i64(whole) + 1           // 1 is an i64
+const plain = 1 + 2                      // no context: both are i32
+// const too_big = byte_value + 300        // ERROR: 300 does not fit in a u8
+// const mixed = 1.5 * 2                 // ERROR: 2 is a whole number, write 2.0
+// f32 half2 = 2                         // ERROR: a whole-number literal is never a float
+
+
+// ============================================================
+// 7. OPERATORS
+// ============================================================
+
+// Operators are symbols and are written between their values: a + b.
+// Both sides of a binary operator must have the same type (section 8). A literal side takes the type of the other side,
+// see section 6.
+
+// arithmetic
+const sum  = 1 + 2             // 3
+const dif  = 5 - 3             // 2
+const prod = 4 * 3             // 12
+const quo  = 7 / 2             // 3   (whole numbers divide to a whole number, like C)
+const quof = 7.0 / 2.0         // 3.5
+const rem  = 7 % 2             // 1
+const ng   = -5                // -5  (unary minus)
+const cat  = String.join("ab", "cd")   // "abcd"  (there is no + on Strings, use String.join)
+
+// comparison, the result is a bool
+const c1 = 1 == 1              // true
+const c2 = 1 != 2              // true
+const c3 = 2 > 1               // true
+const c4 = 2 >= 2              // true
+const c5 = 1 < 2               // true
+const c6 = 1 <= 1              // true
+
+// == and != always compare what the name holds. For a primitive that is the value itself.
+// For a non-primitive value the name holds a reference to it, so == asks whether two names refer to the very same
+// value, not whether their contents are equal (section 10).
+// For example, [1] == [1] is false: two separate Lists, even though the contents are equal.
+// See 02-data-structures section 7.
+
+// logic, the operands must be bool
+const l1 = true && false       // false
+const l2 = true || false       // true
+const l3 = !true               // false
+// && and || stop early: in `a && b`, b is only evaluated when a is true
+
+// Integer arithmetic follows C:
+//   unsigned overflow wraps around:     u8(255) + u8(1)        is 0
+//   signed overflow is undefined:       i32 max + 1            do not rely on any result
+//   / on integers truncates toward 0:   -7 / 2                 is -3
+//   % has the sign of the left side:    -7 % 2                 is -1
+//   division or modulo by zero:         undefined, as in C
+//   shifting by the type's width or more, or by a negative amount:   undefined
+//   >> on a signed integer keeps the sign (arithmetic shift), >> on an unsigned integer fills with zeros
+//   casts between integer types truncate the bits (section 9)
+// Floats follow IEEE 754: 1.0 / 0.0 is infinity, 0.0 / 0.0 is NaN, and NaN is not equal to itself.
+
+// bitwise, on integers
+const b1 = 0b1100 & 0b1010     // 0b1000   and
+const b2 = 0b1100 | 0b1010     // 0b1110   or
+const b3 = 0b1100 ^ 0b1010     // 0b0110   exclusive or
+const b4 = ~u8(0)              // 255      flip every bit
+const b5 = 1 << 4              // 16       shift left
+const b6 = 16 >> 4             // 1        shift right
+
+// assignment
+let v = 1
+v = v + 1                      // 2
+v += 3                         // 5   same as v = v + 3
+// also: -=  *=  /=  %=  &=  |=  ^=  <<=  >>=
+
+// precedence, from tightest to loosest:
+//   1. postfix        .name  .*  (...)  [call, member access, and the value a pointer points to]
+//   2. prefix         -  !  ~  &       [negate, not, bit not, address of]
+//   3. multiply       *  /  %
+//   4. add            +  -
+//   5. shift          <<  >>
+//   6. compare order  <  <=  >  >=
+//   7. compare equal  ==  !=
+//   8. bit and        &
+//   9. bit xor        ^
+//  10. bit or         |
+//  11. logic and      &&
+//  12. logic or       ||
+//  13. assignment     =  +=  -=  ...
+// A postfix operator binds tighter than a prefix one: -p.* is -(p.*) and !items.contains(2) is !(items.contains(2)).
+// The & in front of a name is the address, the & between two values is the bit and (rows 2 and 8).
+// Use parentheses to make the order clear: (1 + 2) * 3
+const pr = (1 + 2) * 3         // 9
+const pq = 1 + 2 * 3           // 7
+
+// Mixing two values of different types is an error, convert first. A literal is not a value of a fixed type, it takes
+// the type of the other side (section 6).
+// i32(1) + i64(1)                    // ERROR: i32 and i64
+// i64(i32(1)) + i64(1)               // OK: both i64
+
+
+// Math: the functions of numbers are static methods of Math, written with the name of the type like String.join.
+const m_abs  = Math.abs(-3)                // 3, for any signed integer or float, the result has the type of the argument
+const m_min  = Math.min(2, 7)              // 2, both arguments have the same type, the literals take it from each other
+const m_max  = Math.max(2.5, 1.5)          // 2.5
+const m_pow  = Math.pow(2.0, 10.0)         // 1024.0, f64
+const m_sqrt = Math.sqrt(16.0)             // 4.0, f64
+// Rounding gives an f64 with a whole value. Write the number type to get an integer.
+const r_floor = Math.floor(2.7)            // 2.0
+const r_ceil  = Math.ceil(2.1)             // 3.0
+const r_round = Math.round(2.5)            // 3.0: halves go away from zero
+const r_trunc = Math.trunc(-2.7)           // -2.0: the decimals are cut off
+const as_int  = i32(Math.round(2.5))       // 3 (i32)
+// Angles are in radians. pi and e are the constants of Math.
+const half_turn = Math.sin(Math.pi / 2.0)  // 1.0
+const slope     = Math.atan2(1.0, 1.0)     // 0.785398...: the angle of the point (x = 1.0, y = 1.0)
+const growth    = Math.exp(1.0)            // 2.718281...: e to the power of 1.0
+const log_ten   = Math.log10(1000.0)       // 3.0
+// Also: Math.cos, Math.tan, Math.asin, Math.acos, Math.atan, Math.log (natural), Math.pi and Math.e.
+// Math.max(1, 2.5)                        // ERROR: an i32 and an f64, convert first
+
+
+// ============================================================
+// 8. TYPE SYSTEM
+// ============================================================
+
+// Static: every binding has one type, fixed at compile time.
+// The type is inferred from the value, or you write it before the name (section 4). It is never inferred from later use.
+//
+// Strong: there is no silent conversion between types.
+// Mixing types is an error and you must convert on purpose (section 9). A literal is the one thing that adapts: it takes
+// the type of its context if the kind matches (section 6), and 1 + 2.5 is still an error because a whole number is not a float.
+//
+//   let v = 1
+//   v = 2.5                      // ERROR: v is i32, not f64
+//   v = "text"           // ERROR: v is i32, not String
+//   1 + 2.5                      // ERROR: i32 and f64, no hidden conversion
+
+// typeof gives the type of a value, it is resolved at compile time
+//   typeof(1)         i32
+//   typeof(u8(1))     u8
+//   typeof(2.5)       f64
+//   typeof(true)      bool
+//   typeof("abc")   String
+
+
+// ============================================================
+// 9. TYPE CONVERSION AND CASTING: type(value)
+// ============================================================
+
+// A cast is written as the target type called as a function.
+// This is the only way to convert, there is no implicit conversion.
+
+// integer to integer, wider type: the value is kept
+const w1 = i64(i32(5))            // 5
+const w2 = u16(u8(200))           // 200
+
+// integer to integer, narrower or different sign: the bits are truncated, like a C cast
+const t5 = u8(300)                // 44    (300 mod 256)
+const t6 = u8(i32(-1))            // 255
+const t7 = i8(u8(200))            // -56
+const t8 = u32(i64(-1))           // 4294967295
+
+// integer to float and back
+const g1 = f64(3)                 // 3.0
+const g2 = f32(i32(16777217))     // 16777216.0   (f32 loses precision)
+const g3 = i32(3.99)              // 3     (the fraction is dropped toward zero)
+const g4 = i32(-3.99)             // -3
+
+// float to float
+const g5 = f32(f64(0.1))          // narrower: rounds
+const g6 = f64(f32(0.1))          // wider: exact copy of the f32 value
+
+// bool and char
+const h1 = i32(true)              // 1
+const h2 = bool(0)                // false, any other number gives true
+const h3 = u32(char('A'))         // 65
+const h4 = char(u32(66))          // 'B'
+
+// to and from String (String is a non-primitive value, section 10)
+const k1 = String(42)             // "42"
+const k2 = String(2.5)            // "2.5"
+const k3 = String(true)           // "true"
+const k4 = i32("42")      // 42, a String that is not a number is a runtime error
+const k5 = f64("2.5")    // 2.5
+
+
+// ============================================================
+// 10. PRIMITIVE VS NON-PRIMITIVE, AND STRING
+// ============================================================
+
+// There are two kinds of types, and the name tells which one:
+//
+//                  primitive                   non-primitive
+//   type names     i32 f64 bool char ...       String Array List Tuple Map Set, and every type you declare
+//   name starts    with a lowercase letter     with a capital letter
+//   the name holds the value itself            a reference to a value that lives on the heap
+//   assignment     copies the value            shares the value: both names refer to the same one
+//   == compares    the values                  the references: are they the very same value?
+//   copy           the assignment itself       clone
+//   created by     a literal: 5, 2.5, true     a literal or a constructor: "abc", [1, 2, 3], Point(x = 1.0, y = 2.0)
+//   inferred       from a literal              from a literal or from the constructor
+//
+// Primitives are i8..u128, isize, usize, f32..f128, bool, char and ptr<T>. A primitive lives on the stack.
+// Every other type is non-primitive: String, Array, List, Map, Set, Tuple, Optional, Result, and every struct, enum,
+// union, class, interface, trait and alias that you declare (05-structs-enums-unions, 07-classes-and-traits).
+// A non-primitive value lives on the heap, and the stack holds only the reference to it. That is the whole rule.
+// There is no third kind of value, so a capital letter always means "shared, not copied".
+//
+// An enum member is one constant that every name for it shares, so two names for the same member are equal.
+//
+// A non-primitive value is made by a literal or by its constructor:
+//   "abc"   {1, 2, 3}   [1, 2, 3]   (1, 2.5)   Set(1, 2, 3)   Map("a", 1)
+// The literal and the constructor are the same thing: "abc" is String("abc"). This holds for explicit declarations
+// too: String s = "abc".
+
+const p = 5
+let   q = p                       // q is a copy of p
+q = 6                             // p is still 5
+
+// --- String: text, immutable ---
+const text = "hello"
+String s1  = "hello"      // explicit type
+const up   = text.upper()         // "HELLO"
+const n1   = text.len()           // 5 (usize)
+const has  = text.contains("ell")   // true
+const both = String.join(text, " world")   // a new String, text is unchanged
+const pieces  = "a,b,c".split(",")         // List<String>: "a", "b", "c"
+const trimmed = "  hi  ".trim()            // "hi": the spaces at both ends are gone
+const swapped = text.replace("l", "L")     // "heLLo": every match is replaced
+const lowered = "HELLO".lower()            // "hello"
+// Positions and parts of a String. A position counts characters from 0, and the end of a slice is not included, like range.
+const where_ll = text.index_of("ll")       // 2: the position of the first match (text is "hello")
+const first_ch = text.get(0)               // 'h' (char)
+const middle   = text.slice(1, 4)          // "ell": the characters at 1, 2 and 3
+// text.index_of("z")                      // throws an Error: "z" is not inside, check text.contains("z") first
+// text.slice(2, 9)                        // throws an Error: the text has no position 9
+// text.get(5)                             // throws an Error: there is no character at position 5
+// Numbers are written into text with a format, see String.format below, and a number is read from text with i32("42"),
+// f64("2.5") and the other number types, which throw when the text is not a number (06-errors section 5).
+// Every one of these gives a new String or List, and text itself is unchanged.
+
+// Text with values in it is built with String.format, which follows the format of C's printf, or with $, a short name for the
+// same function: $(format, values...). The format is a String literal, and each % in it says where a value goes and how it is
+// written. The values follow, in order, as arguments.
+const greeting = String.format("hello %s, you are %d", "ann", 31)      // "hello ann, you are 31"
+const price    = String.format("%s costs %.2f", "tea", 3.5)            // "tea costs 3.50"
+const padded   = String.format("[%5d] [%-5d] [%05d]", 42, 42, 42)      // "[   42] [42   ] [00042]"
+const bases    = String.format("%x %X %o", 255, 255, 8)                // "ff FF 10"
+const marked   = String.format("%c = %s%%", 'x', "ok")                 // "x = ok%"
+const dynamic  = String.format("%*d|%.*f", 5, 42, 2, 3.14159)          // "   42|3.14": * takes the width or precision from a value
+const short_form = $("hello %s, you are %d", "ann", 31)               // the same as String.format, "hello ann, you are 31"
+// The specifiers are those of C, and they say what kind of value they take:
+//   %d %i   a signed integer          %u    an unsigned integer         %x %X %o   an integer, in base 16 or 8
+//   %f %F %e %E %g %G   a float       %c    a char                      %p         a pointer
+//   %s      a String (a String is a built-in type here, so %s takes it directly, not a pointer to characters)
+//   %%      a percent sign
+// Flags, a width and a precision go between % and the letter, as in C: %-10s %05d %8.3f %+d %#x.
+// Length modifiers such as l and ll are accepted and do nothing, since the compiler knows the type of each value.
+// A format that is a literal is checked when the program is built: the number of values must match, and each value must be
+// the kind that its specifier takes.
+// String.format("%d", "a")              // ERROR: %d needs an integer, but this is String
+// String.format("%s and %s", "a")       // ERROR: the format has 2 values but 1 was given
+// String.format("%q", 1)                // ERROR: %q is not a format
+String s2 = String("hello")      // the constructor written out, the same as "hello"
+
+// A separate copy of a String is not needed: it is immutable, so sharing one is always safe.
+// Comparing text: equals compares the text, and == on a String compares references, not the text.
+const text1 = "hi"
+const same1 = text1.equals("hi")  // true: the same text
+const same2 = text1 == "hi"      // false: two separate Strings, == compares references, not the text
+
+// The collections are non-primitive values too. Array, List, Tuple, Set and Map are explained in 02-data-structures.
+
+// A non-primitive value lives as long as something still refers to it (section 11).
+
+
+// ============================================================
+// 11. SCOPE AND LIFETIME
+// ============================================================
+
+// A block `{ }` is a scope. A name is visible from its declaration to the end of its block.
+
+const outer = 1
+{
+    const inner = 2
+    print(outer + inner)     // 3: inner blocks see outer names
+}
+// print(inner)                   // ERROR: inner is out of scope here
+
+// Shadowing: an inner name hides the outer one with the same name.
+const sh = 1
+{
+    const sh = 2.5               // a new binding, may even have another type
+    print(sh)                     // 2.5
+}
+print(sh)                         // 1
+
+// Lifetime of a primitive: it is gone when its block ends, unless a function declared inside that block uses it
+// (04-functions section 15). Such a variable is moved to the heap and lives as long as any function that uses it.
+// Lifetime of a non-primitive value: it lives as long as something still refers to it.
+
+// Top-level names are visible everywhere in the file, below their declaration.
+// A name is visible only below its declaration. So two functions cannot call each other, and a type cannot use a type
+// that is declared below it (04-functions, 05-structs-enums-unions). There are no forward declarations.
+// A function can call itself and a type can name itself in its own body, so recursion and recursive data are possible.
+// A function declared inside another function may use the names declared above it there, see 04-functions section 15.
+// A program is a file: its top-level code runs from the first line to the last, and there is no main function.
+// The program ends with the exit status 0, or with the code of an Error that nothing caught (06-errors).
+// A file can use the names of another file with import and share its own with export (10-modules).
+
+// Naming style:
+//   types, enum members, union variants       Capitalized           Person  Color.Red  Shape.Circle
+//   generic parameters                        one capital letter    T  K  V  E
+//   variables, parameters, struct fields      lower_snake_case      max_byte  roll_number
+//   functions, and methods of a struct,       lower_snake_case      read_line  find_index  same_as  on_error
+//     enum or union
+//   methods and fields of a class, interface  lowerCamelCase        rollNumber  firstRoll  defaultMethod
+//     or trait, and built-in methods                                unwrapOr  typeName
+//   attributes: built-in and your own         lower_snake_case      route  my_route  deprecated
+// A function is declared with const outside a type body. A method is declared inside a struct, enum, union, class,
+// interface or trait. A struct, an enum and a union hold plain data and bindings, so their methods are written like
+// functions: const name = function(...). The methods of a class, an interface or a trait are written the same way
+// with the head method: const name = method(...) (07-classes-and-traits).
+// There is no ALL_CAPS name: a constant is a const written like any other variable.
+// A name has no leading or trailing underscore, except a leading underscore on the private field that an accessor of a class reads and writes (_marks, 07-classes-and-traits section 5). An acronym is written as one word: parse_url for a function, parseUrl for a method.
+// C type names keep their C spelling: size_t.
+// This is a convention. The compiler and the editor do not report an error for a name that does not follow it.
+
+// Built-in names cannot be declared again at the top level of a file. That is a compile error, because the new name
+// would hide the built-in one for the whole file:
+//   functions   print len range read_line sleep typeof sizeof alignof alloc free compile reflect
+//               attributes_of get_field set_field import export $
+//   types       String Array List Tuple Set Map Optional Result Error Weak Any TypeInfo FieldInfo VariantInfo
+//               AttributeInfo BindingInfo Kind Op Module Visibility Inheritance Ownership Code Math System File Time Random IError
+// const print = 1                // ERROR: print is built in, choose another name
+// const List = struct { }        // ERROR: List is a built-in type
+// A name inside a function (a parameter, a local, a loop name) may reuse one of them, it only hides it there.
+// Every name must be declared before it is used. An unknown name is a compile error.
+const known = 1
+print(known)                      // OK: known is declared above
+// print(unknown)                 // ERROR: unknown is not declared
+// known2 = 5                     // ERROR: assignment needs a declaration, write let known2 = 5
+// const early = later            // ERROR: later is declared below, not above
+const later = 2
+// const sum2 = known + missing   // ERROR: missing is not declared
+{
+    const local = 3
+    print(local)                  // OK: local is visible in its own block
+}
+// print(local)                   // ERROR: local is out of scope, so it is not declared here
+
+
+// ============================================================
+// 12. EXPRESSIONS AND STATEMENTS
+// ============================================================
+
+// Statement: does something. Expression: produces a value.
+// Almost everything is an expression.
+
+1 + 2                             // expression used as a statement, result is dropped
+const e1 = 2 * 3 + 4               // 10
+const e2 = e1 > 5                  // true, a comparison is an expression
+
+// Statements on one line are separated by `;`
+let a1 = 1; let a2 = 2; a1 = a1 + a2
+
+// Layout: a statement ends at a newline, unless the line leaves a bracket open or ends with a comma or an operator.
+// A clause continues the statement before it and starts on the same line as the closing `}` or `)`:
+//   if elif else, else after while and for (03-control-flow section 8), try catch finally, extends implements use, get set, chain clauses.
+// match and switch are written like if: the head, then `{`, then one case per line, then `}`.
+// Two cases on one line are an error.
+// A line that starts with an operator is a new statement, it does not continue the line above:
+//   const total = 1 +
+//       2                       // fine: the line above ends with an operator
+//   const wrong = 1
+//       + 2                     // two statements: const wrong = 1, then +2 (a result that is dropped)
+// A keyword that has no value to read has no parentheses: else { }, try { }, finally { }, loop { }. A keyword that reads
+// a value puts it in parentheses: if (x), while (x), for (items), match (x), case (x). catch |e| and else follow the
+// same shape, with a name between pipes when they hand a value to the block.
+// A call to your own function may drop its parentheses when it has one simple operand (double 5, double base) or only a
+// trailing block (timed { }), see 04-functions section 12. A String, a collection literal or an operator needs parentheses.
+// Every type head (struct, union, enum, class, interface, trait) holds its members in braces. Parentheses are for
+// what a head takes: the parameters of a function or an attribute.
+// A block's opening `{` is on the line of its head. An attribute line applies to the declaration below it.
+
+// Assignment is a statement and does not produce a value (x = y = 0 is an error)
+let asg = 0
+asg = 5
+// const bad = (asg = 5)          // ERROR: assignment is not an expression
+
+// Statements run top to bottom.

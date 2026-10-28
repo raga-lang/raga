@@ -1,0 +1,8 @@
+// A library that 10-modules.raga imports by name: import("greeting").
+// It is found because it is in the libraries folder next to raga.project.
+
+const hello = function(String name) String {
+    return String.format("hello %s", name)
+}
+
+export(hello)

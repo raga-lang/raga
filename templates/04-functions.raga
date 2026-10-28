@@ -1,0 +1,766 @@
+// Functions: declaring, parameters, defaults, variadic arguments, return, void, return type inference
+// Calling with positional and named arguments, passing primitive and non-primitive values
+// if / elif / else, recursion, generic functions, callbacks and the trailing block, calls inside calls
+//
+// A function is a value bound to a name, declared like any variable:
+//   const name = function(Type param, ...) [ReturnType] { body }
+// A function can be declared anywhere a variable can: at the top level, in a type, and inside another function. One that
+// is declared inside another function is a closure: it may use the names around it (section 15).
+// A function is a value: it can be passed, returned (section 14) and kept in a variable, a field or a collection.
+// There is no overloading of plain functions (methods can be overloaded, 07-classes-and-traits).
+// A function can take callbacks, as ordinary parameters, and the caller can write one of them as a block, see section 10.
+// Methods are functions inside a struct and are covered in 05-structs-enums-unions.
+// if, switch and loops come from 03-control-flow, which comes before this template.
+
+
+// ============================================================
+// 1. DECLARING A FUNCTION
+// ============================================================
+
+// A parameter is written like a declaration without const or let: Type name.
+const add = function(i32 a, i32 b) i32 {
+    return a + b
+}
+const three = add(1, 2)                   // 3
+
+// A function with no parameters still has the parentheses.
+const answer = function() i32 {
+    return 42
+}
+
+// A function is declared once, with its name, and can be called from anywhere below the declaration.
+// Calling it above its declaration is an error, like any name used before it is declared.
+
+// Rules that keep functions simple:
+//   - A function can be declared at the top level of the file, inside a type, and inside another function (section 15).
+//   - A name belongs to one function. There is no overloading, add(f64, f64) needs another name.
+//   - Methods in a struct are functions too and follow the same rules.
+
+
+
+// ============================================================
+// 2. RETURN AND THE RETURN TYPE
+// ============================================================
+
+// return gives a value back and leaves the function. return belongs to functions only,
+// at the top level of a file, outside any function, it is an error.
+//
+// return leaves the innermost function it is written in. A loop, an if, a match, a switch, a try or a catch is
+// not a function, so a return inside one of them leaves the function around it, however deep it is nested.
+// A block that is passed as a callback is a function body (section 10), so a return inside it leaves only that block.
+const first_over = function(List<i32> items, i32 limit) i32 {
+    for (items) |item| {                  // a loop is not a function
+        if (item > limit) {               // neither is an if
+            return item                   // leaves first_over
+        }
+    }
+    return 0
+}
+//
+// The return type can be written after the parameters, or left out and inferred
+// from the return statements.
+const square = function(f64 x) f64 {      // written
+    return x * x
+}
+const cube = function(f64 x) {            // inferred: f64, because x * x * x is f64
+    return x * x * x
+}
+
+// Every return in a function must give the same type. A literal takes its default type: i32, f64.
+const half = function(f64 x) {
+    return 0.5                            // f64
+}
+// const bad = function(bool flag) {
+//     if (flag) { return 1 }             // i32
+//     return 2.5                         // ERROR: f64 here, the returns disagree
+// }
+
+// A written return type must match what is returned.
+// const bad = function() i32 { return 2.5 }   // ERROR: f64 is not i32
+
+// A function with no return statement returns nothing: its return type is void.
+const greet = function(String name) {
+    print(String.join("hello ", name))
+}
+greet("ann")                      // a void function is called as a statement
+// const x = greet("ann")         // ERROR: greet returns void, there is no value to bind
+
+// A void function can leave early with a bare return.
+const warn = function(i32 level) {
+    if (level < 1) { return }
+    print("warning")
+}
+
+// A function with a return type must return on every path.
+// const bad = function(i32 n) i32 {
+//     if (n > 0) { return 1 }
+// }                                      // ERROR: when n is not above 0 nothing is returned
+
+
+// ============================================================
+// 3. PARAMETERS AND DEFAULT VALUES
+// ============================================================
+
+// A parameter has a type and is fixed inside the function, like a const.
+// To change a value, copy it into a let.
+const doubled = function(i32 n) i32 {
+    let local = n
+    local = local * 2
+    return local
+}
+// const bad = function(i32 n) { n = 5 }  // ERROR: a parameter cannot be assigned, write let local = n
+
+// A parameter can have a default, written like a variable declaration: Type name = value.
+// Parameters with a default come after the ones without. The one exception is the callback that receives a
+// trailing block (section 10): it is always the last parameter, so it comes after the defaults.
+const scale = function(i32 value, i32 factor = 2) i32 {
+    return value * factor
+}
+// const bad = function(i32 factor = 2, i32 value) { }   // ERROR: a default must not come before a parameter without one
+
+
+// ============================================================
+// 4. CALLING A FUNCTION
+// ============================================================
+
+// Arguments are positional, in the order of the parameters.
+const p1 = scale(3, 2)                    // 6
+const p2 = scale(3)                       // factor takes its default, 2: 6
+
+// Arguments can also be named with =, like the fields of a struct. Names can come in any order.
+const p3 = scale(value = 3, factor = 2)
+const p4 = scale(factor = 4, value = 2)   // 8
+const p5 = scale(3, factor = 4)           // positional first, then named
+// const bad = scale(factor = 4, 3)       // ERROR: a positional argument cannot follow a named one
+// const bad = scale(value = 3, times = 2)   // ERROR: scale has no parameter times
+// const bad = scale()                    // ERROR: value has no default and was not given
+// const bad = scale(1.5, 2)              // ERROR: 1.5 is a f64, value is i32
+
+// The result of a call can be ignored. A call is also an expression: its value is the returned value.
+scale(3, 2)
+const total = add(scale(2, 2), scale(3, 2))
+
+
+// ============================================================
+// 5. VARIADIC ARGUMENTS
+// ============================================================
+
+// The last parameter can take any number of extra arguments. Write ... between its type and name.
+// Inside the function the name is an Array<Type> holding the extra arguments, empty when there are none.
+const count = function(String label, i32 ...values) usize {
+    return values.len()
+}
+const n0 = count("none")          // 0
+const n3 = count("three", 1, 2, 3)   // 3
+
+const first_or = function(i32 fallback, i32 ...values) i32 {
+    if (values.len() == 0) { return fallback }
+    return values.get(0)
+}
+const f1 = first_or(7)                     // 7
+const f2 = first_or(7, 10, 20)             // 10
+
+// Rules:
+//   - Only the last parameter can be variadic.
+//   - A function cannot have both default values and a variadic parameter.
+//   - A function cannot have both a variadic parameter and a callback for a trailing block: both would have to be last.
+//   - The extra arguments are positional, a variadic parameter cannot be given by name.
+// const bad = function(i32 ...a, i32 b) { }          // ERROR: the variadic parameter must be last
+// const bad = function(i32 n = 1, i32 ...rest) { }   // ERROR: defaults and variadic cannot be mixed
+// const bad = count("x", 1, 2.5)             // ERROR: every extra argument must be an i32
+
+
+// ============================================================
+// 6. PASSING VALUES: STACK AND HEAP
+// ============================================================
+
+// A primitive is copied into the parameter.
+// The function works on its own copy and the caller's value never changes.
+const grow = function(i32 n) i32 {
+    let bigger = n
+    bigger = bigger + 10
+    return bigger
+}
+let size = 5
+const bigger = grow(size)                 // 15, size is still 5
+
+// A non-primitive value (String, Array, List, Tuple, Set, Map, a struct, an enum member, a class object) is shared:
+// the parameter and the caller's name refer to the same value. A function can change a List it is given.
+const add_one = function(List<i32> items) {
+    items.push(1)
+}
+const items = [5, 6]
+add_one(items)                             // items is now 5, 6, 1
+
+// To keep the caller's value safe, pass a clone.
+add_one(items.clone())                     // items is unchanged
+
+// A parameter name still cannot be rebound to another value, even for a non-primitive value:
+// const bad = function(List<i32> items) { items = [1] }   // ERROR: a parameter cannot be assigned
+
+
+// ============================================================
+// 7. IF, ELIF, ELSE
+// ============================================================
+
+// if, elif and else are explained in full in 03-control-flow. Here is what functions need from them:
+// if is a statement, like switch. It runs a block and does not give a value.
+// The condition must be a bool, there is no truthiness: if (n) is an error for an integer.
+const sign = function(i32 n) i32 {
+    if (n < 0) {
+        return -1
+    } elif (n == 0) {
+        return 0
+    } else {
+        return 1
+    }
+}
+const s1 = sign(-5)                       // -1
+
+// elif and else are optional. A block does not need to return.
+let label = "small"
+if (size > 3) { label = "big" }
+
+// A function with a return type still needs a return after an if without else.
+const clamp = function(i32 n, i32 low, i32 high) i32 {
+    if (n < low) { return low }
+    if (n > high) { return high }
+    return n
+}
+// if (size) { }                          // ERROR: the condition is an i32, not a bool
+// const bad = if (size > 3) { 1 } else { 2 }   // ERROR: if is a statement and gives no value
+
+
+// ============================================================
+// 8. RECURSION
+// ============================================================
+
+// A function can call itself. The return type must be written, it cannot be inferred from a call to itself.
+const factorial = function(u64 n) u64 {
+    if (n <= 1) { return 1 }
+    return n * factorial(n - 1)
+}
+const f5 = factorial(5)                   // 120
+// const bad = function(u64 n) { if (n <= 1) { return 1 } return n * bad(n - 1) }
+//                                        // ERROR: write the return type, it depends on the call to itself
+
+// Two functions cannot call each other (mutual recursion). A name is visible only below its declaration, and there are
+// no forward declarations, so the first of the two cannot name the second:
+// const is_even = function(u64 n) bool { if (n == 0) { return true } return is_odd(n - 1) }   // ERROR: is_odd is not declared above
+// const is_odd = function(u64 n) bool { if (n == 0) { return false } return is_even(n - 1) }
+// Write one function that does the whole job, for example with a loop or with n % 2.
+
+
+// ============================================================
+// 9. GENERIC FUNCTIONS
+// ============================================================
+
+// A type parameter goes in angle brackets after function, like after struct and union.
+// The type argument is inferred from the arguments, or written at the call.
+const identity = function<T>(T value) T {
+    return value
+}
+const i1 = identity(5)                    // i32
+const i2 = identity("hi")         // String
+const i3 = identity<f64>(2.5)             // written out
+
+const first_of = function<T>(Array<T> items) T {
+    return items.get(0)
+}
+const x1 = first_of({1, 2, 3})        // i32
+const x2 = first_of<String>({"a", "b"})
+
+// More than one type parameter, and the parameters can be used in the return type.
+const pair_of = function<A, B>(A first, B second) Tuple<A, B> {
+    return (first, second)
+}
+const t1 = pair_of(1, 2.5)                 // Tuple<i32, f64>
+
+// A type parameter that cannot be inferred from the arguments must be written.
+// const bad = identity<i32>(2.5)         // ERROR: 2.5 is not an i32
+
+// A type parameter has no constraints. Inside the function, a value of type T has only what every type has: it can be
+// passed around, stored, returned, put in a collection and compared with == and !=. Anything else is an error, because the
+// compiler cannot know that every T has it. When the function needs an ability, it takes it as a function parameter, and the
+// caller says how to do it:
+const larger = function<T>(T a, T b, function(T, T) i32 compare) T {
+    if (compare(a, b) > 0) { return a }
+    return b
+}
+const bigger_number = larger(3, 7) |x, y| {
+    return x - y                          // negative: 3 comes first, so the larger one is 7
+}
+const longer_text = larger("ab", "abc") |x, y| {
+    return i32(x.len()) - i32(y.len())
+}
+// const bad = function<T>(T a, T b) T { return a + b }       // ERROR: T is a type parameter and may not have +
+// const bad = function<T>(T value) i32 { return value.size() }   // ERROR: T has no member size
+// Constraints, a way for a type parameter to say what it must be able to do, are not designed yet.
+
+
+// ============================================================
+// 10. CALLBACKS: FUNCTIONS AS ARGUMENTS
+// ============================================================
+
+// A callback is an ordinary parameter whose type is a function. Nothing about it is special in the declaration.
+// A function type is written like a function head without a body: function(parameter types) return type.
+// With no return type it returns nothing. Parameter names in a function type are optional.
+//   function(i32) i32        takes an i32, returns an i32
+//   function(String)         takes a String, returns nothing
+//   function()               takes nothing, returns nothing
+//
+// A parameter of a function type is declared like any other: Type name.
+const apply = function(i32 value, function(i32) i32 transform) i32 {
+    return transform(value)               // a callback is called by the name of its parameter
+}
+
+// The argument can be a named function...
+const double = function(i32 n) i32 {
+    return n * 2
+}
+const r1 = apply(4, double)               // 8
+const r2 = apply(value = 4, transform = double)
+
+// ...or a block written after the closing parenthesis. The block is anonymous: it simply
+// follows the call, the way the block of an if follows its condition, and it fills the LAST parameter, which must
+// be a callback. Its own parameters go between | |, their types come from the declared function type.
+// The block is a function body: return gives the value back to apply.
+const r3 = apply(4) |n| {
+    return n * 3                          // 12
+}
+
+// A callback that returns nothing is written the same way.
+const twice = function(i32 value, function(i32) action) {
+    action(value)
+    action(value)
+}
+twice(5) |n| {
+    print(n)                              // 5, then 5
+}
+
+// A callback with no parameters has no | |.
+const timed = function(function() work) {
+    work()
+}
+timed() {
+    print("inside")
+}
+
+// A call with no arguments is written with parentheses, timed(), or with just its block, as here.
+// Nothing after the name is not a call: timed alone is the function itself.
+timed {
+    print("again")                        // the same call as timed() { print("again") }
+}
+// timed                                  // not a call, this is the function timed
+
+// A block can use the names around the call, and can change a let declared before it.
+let running = 0
+const repeat = function(i32 times, function(i32) action) {
+    for (range(0, times)) |i| {
+        action(i)
+    }
+}
+repeat(4) |pass| {
+    running = running + pass              // 0 + 1 + 2 + 3
+}
+// running is 6
+
+// A callback can be generic like any other parameter.
+const each_with_index = function<T>(List<T> items, function(T, usize) action) {
+    for (items) |item, position| {
+        action(item, position)
+    }
+}
+each_with_index(["a", "b"]) |item, position| {
+    print(position)
+}
+
+// A List sorts itself with a callback that compares two elements. It gives a negative number when the first comes
+// first, 0 when they are equal and a positive number when the second comes first. sort changes the List itself.
+const by_size = function(i32 a, i32 b) i32 {
+    return a - b
+}
+const ranking = [30, 10, 20]
+ranking.sort(by_size)                     // 10, 20, 30
+ranking.sort() |a, b| {                   // the callback written as a block: largest first
+    return b - a
+}                                         // 30, 20, 10
+
+// The callback for the trailing block may follow parameters with defaults, and the caller can leave those out:
+const attempts = function(i32 limit, i32 pause = 100, function(i32 number) work) {
+    for (range(0, limit)) |number| {
+        work(number)
+    }
+}
+attempts(3) |number| {                    // pause takes its default, 100
+    print(number)
+}
+attempts(3, pause = 50) |number| {        // the block still comes after the parentheses
+    print(number)
+}
+
+// Rules for callbacks:
+//   - A function takes at most one trailing block, and it fills the last parameter. Any other callback
+//     is an ordinary argument inside the parentheses (section 11).
+//   - Nothing may come after the callback for the trailing block: no parameter without a default, no parameter with
+//     a default, and no variadic parameter. It is the very last parameter of the function.
+//   - A callback parameter is an ordinary function value. It can be called, handed to another function, stored in a
+//     variable, a field or a collection, and returned (section 14). A block is a function declared in place, so it is a
+//     closure: it may use the names around the call (section 15), and the variables it uses stay alive as long as the
+//     block does, also after the call that received it has ended.
+//   - return inside a block returns from the block, like in any function, and must give the type
+//     of the declared function type. A block cannot return from the function that contains the call.
+//   - break and continue inside a block only affect loops inside that block.
+//   - The block's parameters are named by the caller, and must match the number of types declared.
+// A return inside a loop or an if in a block leaves that block, not the function that contains the call:
+const r4 = apply(4) |n| {
+    for (range(0, n)) |i| {
+        if (i == 2) { return i }          // leaves this block, and apply gets 2
+    }
+    return 0
+}
+// apply(4) |a, b| { return a }           // ERROR: transform takes one parameter, the block names two
+// apply(4) |n| { return "x" }    // ERROR: the block must return an i32
+// const bad = function(function() work, i32 pause = 100) { }    // ERROR: nothing may follow the callback of a trailing block
+// const bad = function(function() work, i32 ...rest) { }        // ERROR: no variadic parameter after it either
+
+
+// ============================================================
+// 11. MORE THAN ONE CALLBACK
+// ============================================================
+
+// A function has at most one trailing block. When it needs more than one callback, the other ones are
+// simple arguments, given inside the parentheses, by position or by name, like any other argument.
+// The callback that the caller writes as a block must be the last parameter.
+const attempt = function(i32 value, function(String reason) failed, function(i32 result) done) {
+    if (value >= 0) {
+        done(value)
+    } else {
+        failed("negative")
+    }
+}
+
+// The other callback is a named function.
+const report = function(String reason) {
+    print(reason)
+}
+attempt(5, failed = report) |result| {    // failed is an argument, the block fills done
+    print(result)                         // 5
+}
+attempt(-5, report) |result| {            // by position
+    print(result)                         // never runs, report gets the reason
+}
+
+// More functions of the same kind, each one takes one block.
+const unless = function(bool condition, function() work) {
+    if (!condition) { work() }
+}
+unless(running > 3) {
+    print("small")
+}
+
+const times = function(i32 count, function(i32 pass) work) {
+    for (range(0, count)) |i| { work(i) }
+}
+times(3) |pass| {
+    print(pass)
+}
+
+// A callback can return a value, so one of two callbacks can be picked by the caller.
+const pick = function(bool flag, function() i32 when_false, function() i32 when_true) i32 {
+    if (flag) { return when_true() }
+    return when_false()
+}
+const one = function() i32 {
+    return 1
+}
+const chosen = pick(running > 3, when_false = one) {
+    return 2                              // the block fills when_true
+}
+// chosen is 2
+
+// Rules:
+//   - At most one block follows the call, and it fills the last parameter.
+//   - Every other callback is an ordinary argument: a named function, passed by position or by name.
+//   - Several clauses after one call are a pattern of structs and methods, see 05-structs-enums-unions section 11.
+// attempt(5) |result| { } failed |reason| { }      // ERROR: a call takes one block, pass failed inside the parentheses
+
+
+// ============================================================
+// 12. CALLS INSIDE CALLS
+// ============================================================
+
+// The result of a call is a value, so it can be the argument of another call.
+const sum = function(Array<i32> numbers) i32 {
+    let result = 0
+    for (numbers) |n| {
+        result = result + n
+    }
+    return result
+}
+const nested = double(sum({1, 3, 4, 3}))     // 22: the Array is built, sum adds it up to 11, double doubles it
+// The inner call runs first, and its type must fit the parameter of the outer one:
+// const bad = double(sum({1, 3}) + 0.5)     // ERROR: that is an f64, double takes an i32
+
+// A call can be written without parentheses when it has one argument that is a single, simple operand, or only a block.
+// The next token after the name decides what the call is:
+//   name(           a call with parentheses, as everywhere above
+//   name {          a call with no arguments and a trailing block
+//   name |x| {      a call with no arguments and a trailing block that names its parameter
+//   name operand    a call with exactly one argument and no parentheses
+//   anything else   no call: the bare name is the function itself, which can be passed as an argument (section 10)
+// An operand is one of these:
+//   - a number (a sign directly before it belongs to it), a char, true or false
+//   - a name, also with a dot and more names after it: user.name
+//   - a call with parentheses: sum({1, 3, 4, 3}), or another call without them
+const d1 = double 5                       // 10, the same as double(5)
+const d2 = double -5                      // -10, the sign belongs to the number
+const base = 7
+const d3 = double base                    // 14, a name
+const d4 = double sum({1, 3, 4, 3})       // 22, a call with parentheses is one operand: double(sum({1, 3, 4, 3}))
+const d5 = double double base             // 28, a call without parentheses is an operand too: double(double(base))
+const d6 = double base + 1                // 15, the argument is one operand only, so this is (double base) + 1
+// A member can be the operand: double user.age is double(user.age).
+
+// What is not an operand needs parentheses, and so does everything with more than one argument:
+//   - a String, or an Array, List or Tuple literal: print("hi"), show({1, 2}), show([1, 2])
+//   - an operator expression: double(base + 1), and double -base is the subtraction double - base
+//   - two or more arguments: add(1, 2)
+//   - an argument together with a trailing block: apply(4) |n| { ... }
+// const bad = print "hi"                  // ERROR: a String is not a primitive value, write print("hi")
+// const bad = add 1, 2                    // ERROR: write add(1, 2)
+// const bad = double base { }             // ERROR: a call with a block and an argument keeps its parentheses
+// A call with no argument and no block always keeps its parentheses: answer().
+
+
+// ============================================================
+// 13. LOOPS AND FUNCTIONS
+// ============================================================
+
+// return inside a loop leaves the whole function, not just the loop.
+const first_negative = function(List<i32> items) i32 {
+    for (items) |item| {
+        if (item < 0) { return item }
+    }
+    return 0                              // nothing negative was found
+}
+const fn1 = first_negative([3, -2, 5])     // -2
+
+// A loop is a statement and gives no value, so a function that needs a result keeps it in a let.
+const sum_of = function(List<i32> items) i32 {
+    let total = 0
+    for (items) |item| {
+        total = total + item
+    }
+    return total
+}
+const sum_total = sum_of([1, 2, 3])    // 6
+
+// Leaving two loops at once: put them in a function and return.
+const has_pair = function(List<i32> items, i32 target) bool {
+    for (items) |a| {
+        for (items) |b| {
+            if (a + b == target) { return true }
+        }
+    }
+    return false
+}
+
+// switch works inside a loop, and break or continue inside a case apply to the loop around the switch.
+const count_ok = function(List<i32> codes) i32 {
+    let ok_count = 0
+    for (codes) |status| {
+        switch (status) {
+            case (200) { ok_count = ok_count + 1 }
+            case (404) { continue }
+            default    { }
+        }
+    }
+    return ok_count
+}
+
+// return inside a switch case leaves the function. A switch with no match runs nothing and the code goes on.
+const status_text = function(i32 status) String {
+    switch (status) {
+        case (200) { return "ok" }
+        case (404) { return "not found" }
+        default    { }
+    }
+    return "unknown"
+}
+
+
+// ============================================================
+// 14. RETURNING A FUNCTION
+// ============================================================
+
+// A function can give back another function: one that is declared above it, or one that it declares inside itself
+// (section 15). What comes back is a function value, and the caller can call it, keep it or pass it on.
+//
+// The return type is a function type (section 10), written after the parameters:
+//   function(String, i32) String       takes a String and an i32, returns a String
+// so a function that returns one reads:
+//   const name = function(parameters) function(String, i32) String { ... }
+const shout = function(String text, i32 times) String {
+    let result = text
+    for (range(0, times)) |pass| {
+        result = String.join(result, "!")
+    }
+    return result
+}
+const whisper = function(String text, i32 times) String {
+    return text
+}
+
+// style chooses between two declared functions and returns the one it chose. The names shout and whisper are written
+// without parentheses: a bare function name is the function itself, not a call (section 12).
+const style = function(bool loud) function(String, i32) String {
+    if (loud) { return shout }
+    return whisper
+}
+
+// The result can be kept in a variable and called by the name of that variable...
+const speak = style(true)                 // the function shout
+const line = speak("hello", 3)            // "hello!!!"
+
+// ...or called right away, with a second pair of parentheses after the first.
+const quiet = style(false)("hello", 3)    // "hello"
+
+// A variable can hold a function. Write the function type before the name, like any typed declaration,
+// or let it be inferred from the function that is given.
+function(String, i32) String current = shout
+current = whisper                         // a typed variable can be given another function of the same type
+const loud_again = current == whisper     // true: == asks whether it is the same function
+const inferred = shout                    // inferred: function(String, i32) String
+
+// A function can choose from a list of declared functions too.
+const plus = function(i32 a, i32 b) i32 {
+    return a + b
+}
+const minus = function(i32 a, i32 b) i32 {
+    return a - b
+}
+const operation = function(String name) function(i32, i32) i32 {
+    if (name.equals("plus")) { return plus }
+    return minus
+}
+const plus_total = operation("plus")(2, 3)     // 5
+const rest = operation("minus")(9, 4)  // 5
+
+// Rules:
+//   - A function type is function(parameter types) return type. With no return type it returns nothing. It can be the
+//     return type of a function, the type of a variable (const, let or a typed declaration) and the type of a parameter.
+//   - What is returned is a function value: the name of a declared function, a variable that holds one, or a function
+//     declared in place. All the returns of the function must have the same function type, and that type is the return
+//     type. It is inferred from the returns when it is not written.
+//   - A function value is a primitive, written with a lowercase type name: assignment copies it, == asks whether it is
+//     the same function. A function that uses names around it carries them with it (section 15), so two values made by
+//     two calls of the same outer function are different functions.
+//   - A name with nothing after it is not a call, so shout is the function and shout("a", 1) is its result. A call with
+//     arguments is written with parentheses, also the second pair in style(true)("a", 1).
+// const wrong = function() function(i32) i32 { return plus }       // ERROR: plus takes two parameters, not one
+
+// A GENERIC FUNCTION AS A VALUE. A generic function (section 9) has no single type until its type argument is known, so it is
+// used as a value with the type argument filled in: identity_of<i32> is a function(i32) i32, and it can be passed, kept and
+// returned like any function value.
+const identity_of = function<T>(T value) T {
+    return value
+}
+const identity_int = identity_of<i32>              // function(i32) i32, a value
+const kept = identity_int(5)                       // 5
+
+const apply_twice = function(function(i32) i32 f, i32 n) i32 {
+    return f(f(n))
+}
+const via_argument = apply_twice(identity_of<i32>, 5)    // 5: the filled-in function is passed
+const via_target = apply_twice(identity_of, 5)           // 5: the parameter says function(i32) i32, so T is i32
+
+const make_identity = function() function(String) String {
+    return identity_of<String>                     // returned with its type filled in
+}
+const same_text = make_identity()("x")             // "x"
+
+// Rules:
+//   - identity_of<i32> is the function with T replaced by i32. It is an ordinary function value of that type, with no trace of
+//     the generic left in it.
+//   - A bare generic name, identity_of without a type argument, is a value only where the target says its type: a parameter
+//     or a declared variable of a function type. Then the type argument is taken from that type.
+//   - Calling it needs no filled-in type: identity_of(3) and identity_of<f64>(2.5) work as in section 9.
+// const bad = identity_of                          // ERROR: identity_of is generic and has no single type, write identity_of<T> with the types filled in
+// apply_twice(identity_of<String>, 5)              // ERROR: function(String) String is not function(i32) i32
+// const mixed = function(bool b) { if (b) { return plus } return shout }   // ERROR: plus and shout have different function types
+// current = plus                                                    // ERROR: current is function(String, i32) String
+
+
+// ============================================================
+// 15. NESTED FUNCTIONS AND CLOSURES
+// ============================================================
+
+// A function is declared like a variable, so it can be declared inside another function. It may use the names around
+// it: the parameters, the locals and the loop names of the function it sits in, and of the functions around that one.
+// Only names declared above it are visible, as everywhere. A function that uses the names around it is a closure.
+const make_counter = function(i32 start) function() i32 {
+    let count = start
+    const next = function() i32 {
+        count = count + 1                 // changes the count of this call of make_counter
+        return count
+    }
+    return next                           // make_counter is over, next goes on using count
+}
+const counter_a = make_counter(10)
+const counter_b = make_counter(100)
+const a1 = counter_a()                    // 11
+const a2 = counter_a()                    // 12
+const b1 = counter_b()                    // 101: every call of make_counter has its own count
+
+// A closure can wrap another function and add behavior around it.
+const double_it = function(i32 n) i32 {
+    return n * 2
+}
+const with_log = function(function(i32) i32 work) function(i32) i32 {
+    const wrapped = function(i32 value) i32 {
+        print(value)                      // runs before the function
+        return work(value)
+    }
+    return wrapped
+}
+const logged_double = with_log(double_it)
+const logged_result = logged_double(4)    // prints 4, then gives 8
+
+// A function can be made in place and kept anywhere a value goes: a variable, a field, a collection.
+const adders = List<function(i32) i32>()
+for (range(0, 3)) |step| {
+    adders.push(function(i32 value) i32 {
+        return value + step               // step is a new variable on every pass, so each adder keeps its own
+    })
+}
+const added = adders.get(2)(10)           // 12
+
+const Button = struct {
+    String label
+    function() on_click
+}
+let clicks = 0
+const save_button = Button(label = "save", on_click = function() { clicks = clicks + 1 })
+save_button.on_click()                    // clicks is 1
+
+// Rules:
+//   - A closure uses the variables it names, it does not copy them. A let that a closure changes is changed for the
+//     function that declared it and for every other function that uses it. A parameter or a const never changes.
+//   - A variable that a closure uses is moved to the heap, so it is still there when the function that declared it
+//     has returned. It is freed when the last function that uses it is freed (08-memory). A non-primitive value was a
+//     reference already, so the closure shares the reference. The move is invisible: nothing in the code changes.
+//   - A loop name is a new variable on every pass, so a function made in the loop keeps the value of its own pass.
+//   - A function that uses no name around it is an ordinary function and carries nothing.
+//   - return in a nested function leaves that function, and break and continue do not cross out of it.
+//   - A name is visible only below its declaration. A nested function can call itself, but not a function declared
+//     below it.
+//   - A closure that is stored in a variable it uses makes a cycle of strong references. It is never freed, as in
+//     08-memory section 8. Keep the way back as a Weak.
+//   - At build time (compile(), 09-attributes-and-reflection) a closure may use only values that are known at build time.
+// const early = function() { later() }                  // ERROR: later is declared below
+// const bad = function() { count = count + 1 }          // ERROR: count is not declared above
+// const fixed = function(i32 n) function() { n = 5 }    // ERROR: a parameter cannot be assigned, write let local = n
+
+// A method is passed or returned by wrapping it in a function, see 07-classes-and-traits section 13.
+// Several clauses after one call (chaining) are a pattern of structs, see 05-structs-enums-unions section 11.

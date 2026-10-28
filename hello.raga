@@ -1,0 +1,379 @@
+// Raga quick start. Read it top to bottom, the templates/ folder explains each part in full.
+// A line comment runs from // to the end of the line. There are no block comments.
+
+
+// ============================================================
+// 1. VARIABLES
+// ============================================================
+
+// A declaration starts with const, let or a type, never a mix, and is always initialized.
+const a = 1                       // const: cannot be rebound, the type is inferred (i32)
+let counter = 0                   // let: can be rebound
+counter = counter + 1
+u8 small = 250                    // a type first: explicit type, can be rebound
+// const u8 x = 1                 // ERROR: const or a type, not both
+// print(unknown)                 // ERROR: every name must be declared above its use
+
+
+// ============================================================
+// 2. PRIMITIVES: PLAIN STACK VALUES, LOWERCASE TYPES
+// ============================================================
+
+const n  = 1                      // i32 (whole numbers default to i32)
+const f  = 2.5                    // f64 (decimals default to f64)
+const ok = true                   // bool
+const ch = 'a'                    // char
+// i8 i16 i32 i64 i128, u8 u16 u32 u64 u128, isize usize, f32 f64 f128, bool, char
+
+const wide = i64(n)               // a cast is the target type called on a value, there is no implicit conversion
+// const bad = n + 2.5            // ERROR: i32 and f64, convert first
+
+// Operators are the usual symbols: + - * / %  == != < <= > >=  && || !  & | ^ ~ << >>
+const grouped = (1 + 2) * 3           // 9
+// Integer math follows C: unsigned overflow wraps, signed overflow and division by zero are undefined.
+// == compares what the name holds: the value for a primitive, the reference for a non-primitive value.
+
+// null is not a value. It is only the empty pointer, like C's NULL.
+i32 target = 7
+ptr<i32> p = &target                // & is the address of a variable
+ptr<i32> empty = null             // only a ptr<T> can be null
+const seven = p.*                   // .* follows the pointer to its value: 7
+p.* = 8                           // and can be assigned: target is now 8
+
+
+// ============================================================
+// 3. HEAP VALUES: CAPITALIZED TYPES, CREATED BY A LITERAL OR A CONSTRUCTOR
+// ============================================================
+
+// A primitive is copied on assignment. A non-primitive value is shared, both names refer to the same value.
+// "text", {1, 2, 3}, [1, 2, 3] and (1, 2.5) are literals, the same as String(...), Array(...), List(...) and Tuple(...).
+// Set and Map have no literal: Set(1, 2, 3), Map("a", 1).
+
+const text = "hello"      // immutable text
+const both = String.join(text, " world")
+
+const days  = {1, 2, 3}      // Array<i32>: fixed size, elements can be replaced
+days.set(0, 9)
+
+const nums = [1, 2, 3]        // List<i32>: grows and shrinks
+nums.push(4)
+const last = nums.pop()
+const none = List<i32>()          // an empty collection needs its type: in angle brackets, or from the context (List<i32> x = [])
+
+const pair = (1, 2.5)        // Tuple<i32, f64>: fixed size, each slot has its own type
+const ages = Map("ann", 31)   // Map<String, i32>: flat, a hash table, a String key is found by its text
+const ids  = Set(1, 2, 3)         // Set<i32>: no duplicates
+
+// == on a non-primitive value asks if two names refer to the same value. Only String can compare contents, with equals.
+// Every non-primitive type has its own clone.
+const same = text.equals("hello")   // true: the same text
+const same_ref = nums == nums.clone()      // false: a clone is a separate value
+
+// Types are always passed in angle brackets, values in parentheses.
+const grid = [{1, 2}, {3, 4}]   // List<Array<i32>>
+
+
+// ============================================================
+// 4. STRUCT: NAMED FIELDS
+// ============================================================
+
+const Point = struct {
+    f64 x                         // a struct field has a type and a name, and may have a default: f64 y = 0.0
+    f64 y
+}
+
+// A struct is created with its fields, by name, in any order. A field with a default can be left out.
+const p1 = Point(x = 1.5, y = 2.5)
+const p2 = Point(y = 2.5, x = 1.5)
+// const bad = Point(1.5, 2.5)    // ERROR: write the names
+// const bad = Point(x = 1.5)     // ERROR: y was not given, and y has no default
+
+// A struct can hold functions (methods). Inside them `this` is the value, and a method that assigns to a field changes it.
+const Counter = struct {
+    i32 value
+    const increment = function() {
+        this.value = this.value + 1
+    }
+
+    const get = function() i32 {
+        return this.value
+    }
+}
+let c = Counter(value = 0)
+c.increment()
+const now = c.get()               // 1
+// Every struct also gets clone for free, generated from its fields.
+const p3 = p1.clone()
+
+
+// ============================================================
+// 5. ENUM AND UNION
+// ============================================================
+
+// An enum is a fixed set of names, each with the number you write. Its default is the first name.
+const Color = enum { const Red = 0; const Green = 1; const Blue = 2 }
+const c1 = Color.Green
+const dflt = Color()              // Color.Red
+const code = i32(Color.Blue)      // 2
+
+// A tagged union holds exactly one variant, and every variant is a struct.
+const Shape = union {
+    const Circle = struct { f64 radius }
+    const Rect   = struct { f64 w; f64 h }
+    const Empty  = struct { }
+}
+const s1 = Shape.Circle(2.0)
+const s2 = Shape.Rect(w = 3.0, h = 4.0)
+
+// An untagged union is raw shared bytes, for bit tricks. Use a tagged union otherwise.
+const Bits32 = union {
+    i32 i = 0                     // struct and union fields may have a default, interface fields never do
+    f32 f
+}
+let bits_view = Bits32(i = 0)      // a union is created by naming the field to start with, or with no argument when the first has a default
+
+
+// ============================================================
+// 6. MATCH AND FUNCTIONS
+// ============================================================
+
+// match is a statement. A case gives a value back with an explicit return, and |name| is the variant's data.
+const area = function(Shape s) f64 {
+    match (s) {
+        case (Circle) |c| { return 3.14 * c.radius * c.radius }
+        case (Rect)   |r| { return r.w * r.h }
+        case (Empty)      { return 0.0 }
+    }
+}
+const a1 = area(s1)
+
+// Functions: typed parameters, optional defaults, `Type ...name` for any number of extra arguments.
+// The return type is inferred from the return statements or written after the parameters, and a function
+// without a return statement returns void. A function can be declared inside another function and then uses the names
+// around it (a closure), and there is no overloading of plain functions. See templates/04-functions.raga.
+const scale = function(i32 value, i32 factor = 2) i32 {
+    return value * factor
+}
+const doubled = scale(21)                 // 42
+
+// The result of a call can be the argument of another call. A call has parentheses, unless it has one simple operand
+// (double 5, double base, double sum(xs)) or only a block (timed { }). A name with nothing after it is the function itself.
+const double = function(i32 n) i32 {
+    return n * 2
+}
+const sum = function(Array<i32> numbers) i32 {
+    let result = 0
+    for (numbers) |n| { result = result + n }
+    return result
+}
+const nested = double(sum({1, 3, 4, 3}))     // 22
+const nested2 = double sum({1, 3, 4, 3})     // 22, one simple operand needs no parentheses
+const five = double 5                      // 10
+
+// A callback is an ordinary parameter with a function type, written like a function head: function(i32) i32.
+// The caller can pass a function by name, or write a block after the parentheses.
+// |n| names the block's parameters, and return inside a block gives the value back.
+const apply = function(i32 value, function(i32) i32 transform) i32 {
+    return transform(value)
+}
+const r1 = apply(4) |n| { return n * 3 }  // 12
+
+// A function takes at most one trailing block, and it fills the last parameter. Any other callback is an
+// ordinary argument inside the parentheses. Several clauses in one chain are a pattern of structs, see 05-structs-enums-unions section 11.
+const report = function(String reason) {
+    print(reason)
+}
+const guarded = function(function(String message) on_fail, function() action) {
+    try {
+        action()
+    } catch |e| {
+        on_fail(e.message)
+    }
+}
+guarded(on_fail = report) {
+    throw(Error(message = "boom", code = 1))
+}
+const tripled = scale(value = 14, factor = 3)
+
+// Every variant must be handled or there must be a default.
+// return belongs to functions only. At the top level a case does its work instead of returning.
+let label = ""
+match (s2) {
+    case (Circle) { label = "circle" }
+    default       { label = "other" }
+}
+
+// if is a statement too, like match. It does not give a value either.
+let size = ""
+if (n > 10) { size = "big" }
+elif (n > 5) { size = "medium" }
+else { size = "small" }
+
+// switch is match for integers and chars. A case lists one or more values and does not fall through.
+let status = ""
+switch (404) {
+    case (200)      { status = "ok" }
+    case (404, 410) { status = "gone" }
+    default         { status = "unknown" }
+}
+
+// Loops are statements too. for walks a collection, range counts, while tests first, loop runs until break.
+let total = 0
+for (nums) |n| { total = total + n }              // |n| is one element, fixed inside the block
+for (range(0, 3)) |i| { print(i) }                 // 0, 1, 2 (the end is not included)
+let left = 3
+while (left > 0) { left = left - 1 }
+loop {
+    left = left + 1
+    if (left >= 3) { break }                       // continue skips to the next pass
+}
+
+
+// ============================================================
+// 7. GENERICS, OPTIONAL AND RESULT
+// ============================================================
+
+// A type parameter goes in angle brackets, after struct or union.
+const Box = struct<T> {
+    T value
+}
+const b1 = Box(1)                 // Box<i32>, inferred
+const b2 = Box<f64>(2.5)          // or written out
+
+// Anything that may be absent is an Optional<T>, anything that may fail is a Result<T, E>.
+// Both are generic tagged unions that come with the language. They are made the same way, and the type arguments
+// come from the context: the declared type, or the return type of the function. Without a context, write them.
+const found = Optional.Some(5)
+Result<i32, String> failed = Result.Err("not a number")
+
+
+// ============================================================
+// 8. MEMORY
+// ============================================================
+
+// A name holds a primitive itself, or a reference to a non-primitive value. Memory is freed automatically
+// when nothing refers to a non-primitive value any more, there is no free.
+let copy_a = 1
+let copy_b = copy_a                         // a copy: changing copy_b leaves copy_a alone
+const shared1 = [1]
+const shared2 = shared1                   // the same List: a change through either name is seen by both
+const separate = shared1.clone()          // a separate List
+// const does not freeze a non-primitive value, it only stops the name from being rebound.
+
+
+// ============================================================
+// 9. ERRORS
+// ============================================================
+
+// A normal failure is part of the return type: Optional<T> (a value or nothing) or Result<T, E> (a value or a reason).
+// Both are read with match. There is no null.
+const divide = function(i32 top, i32 bottom) Result<i32, String> {
+    if (bottom == 0) { return Result.Err("divide by zero") }
+    return Result.Ok(top / bottom)
+}
+let quotient = 0
+match (divide(10, 2)) {
+    case (Ok)  |ok|  { quotient = ok.value }
+    case (Err) |bad| { print(bad.reason) }
+}
+
+// Something that should never happen is thrown. Only an Error can be thrown, and catch handles it.
+try {
+    throw(Error(message = "something broke", code = 1))
+} catch |e| {
+    print(e.message)
+} finally {
+    print("always runs")
+}
+
+
+// ============================================================
+// 10. ATTRIBUTES AND OPERATORS
+// ============================================================
+
+// An attribute is written in [ ] on the line above a declaration. You declare your own with the head attribute, in
+// three patterns: only metadata, a build hook that runs once while building, and a call hook that runs on every call.
+const page = attribute(String path)                     // metadata: the arguments are stored, read back with attributes_of
+const pages = Map<String, BindingInfo>()
+const route = attribute(String path) |target, path| {   // build hook: the block names target and each parameter
+    pages.set(path, target)
+} call |target, args, next| {                            // call hook: target, the arguments of the call, and next
+    return next(args)
+}
+[page("/")]
+[route("/home")]
+const home = function() String {
+    return "welcome"
+}
+const home_path = attributes_of(home, "page").get(0).arguments.get(0).as<String>().unwrap()   // "/"
+
+// An operator on your own type is an ordinary function with the [operator(...)] attribute.
+const Vec = struct {
+    f64 x
+    f64 y
+}
+[operator(Op.Add)]
+const add_vec = function(Vec a, Vec b) Vec {
+    return Vec(x = a.x + b.x, y = a.y + b.y)
+}
+const sum_vec = Vec(x = 1.0, y = 0.0) + Vec(x = 0.0, y = 2.0)
+
+// compile(expression) runs code while the program is built, and reflect<T>() describes a type as data.
+const sixty_four = compile(sizeof<f64>() * 8)
+const vec_info = reflect<Vec>()
+
+
+// ============================================================
+// 11. CLASSES AND TRAITS
+// ============================================================
+
+// A class is a non-primitive value that can extend one class and implement interfaces. A trait is used with the use(...) clause.
+// Members are ordinary declarations: a field is a variable, a method is const name = method(...), and an accessor is
+// const name = get { } set |value| { }. Overloaded versions of a method are chained on the closing brace.
+// Modifiers are attributes on the line above: [class(Inheritance.Final)], [method(Ownership.Static)], [method(Inheritance.Override)], [accessor(Ownership.Static)].
+const ISpeak = interface {
+    [method(Inheritance.Abstract)]
+    const speak = method() String             // abstract: every class that implements ISpeak must write it
+}
+const People = class {
+    String name = ""
+}
+[class(Inheritance.Final)]
+const Student = class {
+    i32 rollNumber = 0
+    [field(Visibility.Private)]
+    i32 _marks = 12
+
+    const speak = method() String {
+        return this.name
+    } method(String lang) String {            // a second version of speak, chosen by the arguments
+        return String.join(this.name, lang)
+    }
+
+    const marks = get {                       // read like a field: sam.marks
+        return this._marks
+    } set |value| {                           // written like a field: sam.marks = 15
+        this._marks = value
+    }
+} extends(People) implements(ISpeak)
+const sam = Student(name = "sam", rollNumber = 7)
+
+
+// ============================================================
+// 12. MODULES
+// ============================================================
+
+// A file is a module. It shares names with one export call at its end, and another file reads them with import.
+// There is no main function: the top-level code of the file you run goes from the first line to the last.
+//   ---- ./geometry/shapes.raga ----        ---- the file that uses it ----
+//   const pi = 3.14159                      const shapes = import("./geometry/shapes")
+//   export(pi)                           const radius_pi = shapes.pi
+
+
+// ============================================================
+// WHERE TO GO NEXT
+// ============================================================
+
+// Each template in templates/ covers one area: 01-basics, 02-data-structures, 03-control-flow, 04-functions,
+// 05-structs-enums-unions, 06-errors, 07-classes-and-traits, 08-memory, 09-attributes-and-reflection, 10-modules,
+// 11-standard-library.

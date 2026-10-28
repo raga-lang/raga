@@ -1,0 +1,3 @@
+// The project file is optional. It gives a library name to a file: name = "path".
+// A path is written from the folder of this file, without the .raga ending.
+shapes_lib = "./geometry/shapes"

@@ -1,0 +1,872 @@
+// Classes: class, inheritance (extends), interfaces (implements), traits (use), abstract and final, static members
+// Overloaded methods, accessors (get and set), polymorphism, type tests, generic classes
+//
+// A struct (05-structs-enums-unions) is plain data with no inheritance.
+// A class is a non-primitive value that can extend one other class, implement interfaces, use traits, and be used where its
+// base type or an interface is expected.
+//
+// A class is declared like every other construct: attributes on the line above, then const Name = head, a body in
+// braces, and the clauses that follow the closing brace on the same line:
+//   [class(Inheritance.Final)]
+//   const Student = class { ... } extends(People) implements(ISpeak, Logs)
+// The head is written like the head of a struct: class, interface or trait, then the body, with no parentheses.
+// The clauses come in this order, and each one is optional: extends first (at most once), then implements, then use.
+//
+// Inside the body every member is an ordinary declaration, written exactly as outside a class:
+//   String name = ""                                   a field: a variable
+//   const speak = method() String { ... }              a method: a binding whose head is method, like function
+//   const marks = get { ... } set |value| { ... }      an accessor: a binding whose head is get, then a set clause
+//
+// It uses structs and methods from 05-structs-enums-unions, and Optional and errors from 06-errors. Attributes (09-attributes-and-reflection), non-primitive values and
+// reference counting (08-memory) and Any (09-attributes-and-reflection) are explained in the templates that come after this one.
+
+
+// ============================================================
+// 1. A CLASS: FIELDS AND METHODS
+// ============================================================
+
+// A field is a variable declaration. It follows the same rules as a variable outside a class:
+//   String name = ""           a field of a written type
+//   let age = 0                a field whose type comes from the value
+//   const species = "human"    a field that cannot be assigned again
+// A field always has a value, so an object can be created without naming it. The value is worked out again for every
+// object, so two objects never share a List written as a default.
+//
+// A method is a binding whose head is method. It is written like a function, with the parameters after method, the
+// return type after them and the body in braces:
+//   const greet = method() String { ... }
+// A method that gives something back writes its return type, or leaves it out and lets it be inferred.
+// A method that gives nothing back has no return type. Inside a method, this is the object.
+// Why a class method is written method and not function: a method may be replaced by a class that extends it
+// (section 6), and it has this. A function has neither. Everything else is the same, so parameters, defaults,
+// variadic parameters, named arguments and generics (const echo = method<T>(T value) T { ... }) work as in 04-functions.
+const Person = class {
+    String name = ""
+    i32 age = 0
+
+    const greet = method() String {
+        return String.join("hello, I am ", this.name)
+    }
+
+    const birthday = method() {
+        this.age = this.age + 1               // a method may change a field, also on a const name: the object is shared
+    }
+}
+
+// A class is created like a struct, by naming fields. A field that is left out takes its value.
+const ann = Person(name = "ann", age = 30)
+const greeting = ann.greet()
+ann.birthday()                                // ann.age is 31, even though ann is const
+
+// A class value is a non-primitive value, like a struct. Everything in 08-memory applies to it:
+//   - a name holds a reference, an assignment shares the same object
+//   - const protects the name, not the object
+//   - it is reference counted and freed when nothing refers to it
+//   - == asks whether two names refer to the same object
+//   - clone makes a separate copy: every class has a clone method, generated like the one of a struct
+const same = ann
+same.name = "anna"                    // ann.name changes too: one object, two names
+const twin = ann.clone()                      // a separate Person
+const is_same = ann == same                    // true
+const is_twin = ann == twin                    // false
+
+// Class names are Capitalized, like every type name.
+
+// OVERLOADED METHODS
+// A method can have several versions with different parameters. The versions are a chain: each further one is
+// written on the same line as the closing brace of the one before, starting with method and its own parameters.
+// The name is declared once, with const, and every version belongs to it.
+const Greeter = class {
+    const hello = method() String {
+        return "hello"
+    } method(String name) String {
+        return String.join("hello, ", name)
+    } method(String name, i32 times) String {
+        return String.join(String.join("hello, ", name), String(times))
+    }
+}
+const greeter = Greeter()
+const h1 = greeter.hello()                    // the version without parameters
+const h2 = greeter.hello("bob")               // the version with one String
+const h3 = greeter.hello("bob", 3)            // the version with a String and an i32
+
+// Rules:
+//   - A version is chosen at compile time by its arguments: how many there are, their types, and their names.
+//     If no version fits, or two fit equally well, it is a compile error.
+//   - Two versions with the same parameter types are an error, even when the names differ or the return types differ.
+//   - The versions may have different return types.
+//   - Attributes above the declaration describe every version of it: [method(Ownership.Static)] makes all of them static.
+//     All versions of a name are written in one chain: declaring the same name twice in a class is an error.
+//   - Overloading is for methods, and so for constructors (section 3). A function outside a class has one version only (04-functions).
+// const bad = Greeter().hello(1)                 // ERROR: no version of hello takes an i32
+// const clash = method(String a) { } method(String b) { }   // ERROR: the same parameter types twice
+
+
+// ============================================================
+// 2. ATTRIBUTES ON CLASSES AND MEMBERS
+// ============================================================
+
+// The modifiers of a class and of its members are attributes (09-attributes-and-reflection), on the line above,
+// like every attribute. These are special attributes that come with the language. They extend what a class,
+// a method, a field or an accessor can do, such as who may use it and how it is called:
+//   [class(...)]      for a class
+//   [method(...)]     for a method
+//   [field(...)]      for a field
+//   [accessor(...)]   for an accessor, both of its parts at once, see section 5
+//   [get(...)]        for the get part of an accessor only
+//   [set(...)]        for the set part of an accessor only
+// Several modifiers can be written in one attribute, separated by commas, or each in an attribute of its own.
+// Both mean the same:
+//   [method(Ownership.Static, Inheritance.Final, Visibility.Public)]
+//   [method(Ownership.Static)] [method(Inheritance.Final)] [method(Visibility.Public)]
+//
+// A modifier is a member of one of three enums that come with the language. They are grouped by the question they
+// answer, and a member is always written with the name of its enum, like Kind.Function in 09-attributes-and-reflection:
+//   const Visibility  = enum { const Public = 0; const Protected = 1; const Private = 2 }               who may use it
+//   const Inheritance = enum { const Final = 0; const Abstract = 1; const Virtual = 2; const Override = 3 }   how a subclass may change it
+//   const Ownership   = enum { const Instance = 0; const Static = 1 }                                  who owns it: each object, or the class itself
+// They are ordinary enums, so none of these words is reserved: static, final or private can be used as a name.
+//
+// What each member means:
+//   Visibility.Public       everyone may use it (the default)
+//   Visibility.Protected    the class and its subclasses
+//   Visibility.Private      only the class itself
+//   Inheritance.Final       on a class: it cannot be extended. On a method or accessor: it cannot be replaced again,
+//                           so it must be virtual or an override, as in C++
+//   Inheritance.Abstract    on a class: it cannot be created, it exists to be extended. On a method: it has no body, every
+//                           class that extends must provide it, and it is virtual too
+//   Inheritance.Virtual     the method is chosen by the class of the value, and a class that extends may replace it.
+//                           A method that is not virtual is chosen by the type of the name, see section 9
+//   Inheritance.Override    the method replaces a virtual method of the base class. It is optional, a method with the
+//                           same name and parameters as a virtual base method replaces it anyway. When it is written the
+//                           compiler checks that there is something to replace. A replacing method is virtual itself
+//   Ownership.Static        the member belongs to the class and not to a value, it is used through the class name
+//                           and has no this, see section 12
+//   Ownership.Instance      the member belongs to each object (the default, so it is rarely written)
+//
+// Which members each attribute accepts:
+//   [class(...)]      Inheritance.Final, Inheritance.Abstract
+//   [method(...)]     every Visibility, every Inheritance, every Ownership
+//   [field(...)]      every Visibility, every Ownership
+//   [accessor(...)]   every Visibility, every Ownership, Inheritance.Virtual, Inheritance.Override, Inheritance.Final
+//   [get(...)]        every Visibility, nothing else
+//   [set(...)]        every Visibility, nothing else
+//
+// A method without a body is always marked [method(Inheritance.Abstract)], in an abstract class, in an interface and in a trait.
+// A method with a body is a normal method. Classes and traits can have them, an interface has only abstract methods.
+//
+// Without a Visibility a member is public. A value from another enum, or a bare word, is a compile error, and so are
+// modifiers that contradict each other:
+// [method(Inheritance.Abstract, Inheritance.Final)]       // ERROR: an abstract method must be overridden, a final one cannot be
+// [method(Ownership.Static, Inheritance.Override)]      // ERROR: a static method belongs to the class, there is nothing to override
+// [method(Inheritance.Final)]                 // ERROR on a method that is not virtual: there is nothing to forbid replacing
+// [method(Inheritance.Virtual, Inheritance.Final)]        // fine: virtual in this class, and no class that extends may replace it
+// [method(Inheritance.Virtual, Ownership.Static)]       // ERROR: a static method belongs to the class, it is not replaced
+// [class(Inheritance.Virtual)]                // ERROR: [class(...)] takes Final and Abstract, virtual is for a method
+// [method(static)]                            // ERROR: write Ownership.Static, a modifier is always written with its enum
+// [method(Kind.Function)]                     // ERROR: Kind is not a modifier enum
+// [field(Inheritance.Final)]                  // ERROR: [field(...)] takes Visibility and Ownership only
+// [get(Ownership.Static)]                   // ERROR: get and set take a Visibility only, Ownership.Static belongs to [accessor(...)]
+// [method(Visibility.Public, Visibility.Private)]       // ERROR: two visibilities
+// [class(Inheritance.Abstract, Inheritance.Final)]        // ERROR: an abstract class must be extended, a final one cannot be
+// A constructor and a destructor are not marked by a modifier, they have special names, see sections 3 and 4.
+
+// Every kind of modifier in one place. Shape is abstract and cannot be created, Circle is final and cannot be extended:
+[class(Inheritance.Abstract)]
+const Shape = class {
+    [field(Visibility.Protected)]
+    String label = ""                                 // only Shape and the classes that extend it may use it
+    [field(Visibility.Private)]
+    i32 secret = 0                                    // only Shape may use it
+
+    [method(Inheritance.Abstract)]
+    const area = method() f64                         // no body: every class that extends Shape must write it
+
+    [method(Inheritance.Virtual)]
+    const describe = method() String {                // a class that extends Shape may replace it
+        return this.label
+    }
+
+    [method(Ownership.Static, Visibility.Public)]
+    const unit = method() String {                    // called on the class: Shape.unit(), and it has no this
+        return "cm"
+    }
+}
+
+[class(Inheritance.Final)]
+const Circle = class {
+    f64 radius = 1.0
+
+    [method(Inheritance.Override)]
+    const area = method() f64 {                       // replaces the abstract area
+        return 3.14159 * this.radius * this.radius
+    }
+
+    [method(Inheritance.Override, Inheritance.Final)]
+    const describe = method() String {                // replaces the virtual describe, and no class may replace it again
+        return "a circle"
+    }
+} extends(Shape)
+
+const unit_name = Shape.unit()                        // "cm"
+const circle_area = Circle(radius = 2.0).area()       // 12.56636
+// const bad = Shape()                                // ERROR: Shape is abstract
+// const bad = class { } extends(Circle)              // ERROR: Circle is final
+
+
+// ============================================================
+// 3. CONSTRUCTORS
+// ============================================================
+
+// A class is created by naming its fields, as a struct is. When creation needs code, the class has a method named
+// constructor. It runs once the object exists, with every field already set to its default.
+// The parameters of the constructor are the arguments of the creation, written as for any function call.
+// constructor is a special name: it is declared like any method, const constructor = method(...) { ... }.
+const Pupil = class {
+    String name = ""
+    i32 rollNumber = 0
+    [field(Visibility.Private)]
+    String code = ""
+
+    const constructor = method(String name, i32 roll_number) {
+        this.name = name
+        this.rollNumber = roll_number
+        this.code = String.join("S-", String(roll_number))
+    } method(String name) {                    // a second way to create a Pupil
+        this.name = name
+        this.code = "S-none"
+    }
+}
+const sam = Pupil(name = "sam", roll_number = 7)     // the first version runs, code is "S-7"
+const lee = Pupil(name = "lee")                      // the second version runs, code is "S-none"
+
+// Rules:
+//   - A class has at most one constructor binding, always named constructor. It may have several versions,
+//     chained like the versions of any method (section 1), and creation picks one by the arguments.
+//   - With a constructor, the creation takes the parameters of one of its versions, named or by position, with
+//     defaults and variadic arguments as in 04-functions. Without one, the creation takes the fields by name, as a struct does.
+//   - The constructor has no return type, and it cannot be called by hand: sam.constructor(...) is an error.
+//   - It takes no attributes: it cannot be static, abstract, final or override, and it is public.
+//   - A constructor may throw an Error, and then no object is made, see 06-errors.
+// const bad = Pupil(name = "sam", roll = 7)        // ERROR: no version of the constructor has a parameter roll
+// sam.constructor("x", 1)                          // ERROR: a constructor runs only when an object is created
+
+// A class that extends another one calls the constructor of the base class first, with super(...).
+// If the base class has no constructor, or its constructor needs no arguments, the call is made for you.
+const Graduate = class {
+    String degree = ""
+
+    const constructor = method(String name, String degree) {
+        super(name = name, roll_number = 0)        // the base constructor runs first
+        this.degree = degree
+    }
+} extends(Pupil)
+const grad = Graduate(name = "gia", degree = "math")
+
+
+// ============================================================
+// 4. DESTRUCTORS
+// ============================================================
+
+// A method named destructor runs when the object is freed. It is for giving back what the object holds:
+// closing a file, releasing memory from alloc (08-memory section 9).
+// Objects are reference counted, so this happens at a known moment: when the last reference goes (08-memory section 8).
+const Connection = class {
+    String host = ""
+
+    const destructor = method() {
+        print(String.join("closing ", this.host))
+    }
+}
+
+{
+    const link = Connection(host = "db1")
+}                                                 // link leaves its block, the count reaches 0, destructor runs and prints
+
+// Rules:
+//   - A destructor is always named destructor. It has no parameters, no return type and no attributes, and a class has
+//     at most one. It has one version only, since it has no parameters to tell versions apart. It cannot be called by hand.
+//   - It runs at the moment the count reaches 0, and the destructor of the derived class runs first, then the one of the base.
+//   - It must not throw. An Error thrown inside a destructor ends the program.
+//   - The object is being freed, so do not keep this anywhere from inside a destructor.
+//   - Objects in a cycle of strong references are never freed, so their destructors never run: use Weak (08-memory section 8).
+//   - A struct has no destructor. Only classes do.
+// link.destructor()                              // ERROR: a destructor runs only when the object is freed
+
+
+// ============================================================
+// 5. ACCESSORS: get AND set
+// ============================================================
+
+// An accessor is a name that is read and written like a field but runs code. It is a binding whose head is get,
+// followed by a set clause, which follows the shape of a call like extends and implements do after a class:
+//   const marks = get { ... } set |value| { ... }
+//   get     runs when the accessor is read. It has no parameters and returns the value to hand out.
+//   set     runs when the accessor is assigned. It receives the new value as |value|, the name is yours, and returns nothing.
+// An accessor has no storage of its own. Nothing is created for you: the blocks only run code, like every other block
+// (04-functions section 10). The value lives in an ordinary field, which is usually private and starts with an underscore
+// (a naming convention only), and the two parts read and write it through this:
+const Temperature = class {
+    [field(Visibility.Private)]
+    f64 _celsius = 20.0
+
+    const celsius = get {
+        return this._celsius
+    } set |value| {
+        if (value < -273.15) { throw(Error(message = "below absolute zero", code = 1)) }
+        this._celsius = value
+    }
+
+    // an accessor with only a get is read-only, and it may work its value out instead of reading a field
+    const fahrenheit = get {
+        return this._celsius * 9.0 / 5.0 + 32.0
+    }
+}
+
+let reading = Temperature()                       // _celsius starts as 20.0
+reading.celsius = 25.0                            // runs set, which assigns _celsius
+const now = reading.celsius                       // runs get: 25.0
+const warm = reading.fahrenheit                   // 77.0
+const hot = Temperature(celsius = 40.0)           // creating with a value runs set too, so the check applies
+
+// get and set can change a value on the way, because they are ordinary code:
+//   const price = get { return this._price * 1.2 } set |value| { this._price = value / 1.2 }
+
+// The type of the accessor is the type that get returns. An accessor with only a set has no get to read it from,
+// so the type is written before the name, as in any declaration:
+//   i32 pin = set |value| { this._pin = value }
+
+// Attributes. [accessor(...)] describes both parts. [get(...)] and [set(...)] describe one part and take a Visibility only.
+// A part with its own attribute uses it, the other part uses the accessor's. So a reader that everyone may use and
+// a writer that only the class may use are written:
+//   [get(Visibility.Public)]
+//   [set(Visibility.Private)]
+//   const level = get { return this._level } set |value| { this._level = value }
+// and the same thing for a whole accessor that only a class and its subclasses may use:
+//   [accessor(Visibility.Protected)]
+//   const level = get { ... } set |value| { ... }
+
+// Rules:
+//   - The parts come in the order get, set. Each is optional and appears at most once, but not both missing.
+//   - get has no parameters and returns the type of the accessor. set has one parameter, of that type, and returns nothing.
+//     A set that refuses a value throws, and then nothing is assigned because the set itself assigns.
+//   - With no set the accessor is read-only: assigning it is an error. With no get it is write-only.
+//   - When an object is created, an accessor that is named runs its set, in the order of the arguments, after every field
+//     has its default. One that is not named does nothing.
+//   - An accessor is read and written like a field: reading.celsius, never reading.celsius().
+//   - A plain field is already the trivial accessor. Write the parts only when there is something to do,
+//     such as checking a value, converting it, or working it out from other fields.
+//   - An accessor can be static, and then it works with static fields, see section 12.
+//   - An accessor can be inherited and overridden with [accessor(Inheritance.Override)] or [accessor(Inheritance.Virtual)], as a method.
+// reading.fahrenheit = 100.0                     // ERROR: fahrenheit has no set, it is read-only
+// reading.celsius = "hot"                        // ERROR: celsius is an f64
+// reading.celsius()                              // ERROR: an accessor is not called
+// [get(Ownership.Static)]                                  // ERROR: get takes public, protected or private only
+
+// An interface or a trait lists an accessor like any field, with only its type and name and no parts. A class
+// satisfies it with a plain field or with an accessor, whichever it needs:
+const IHasName = interface {
+    String name
+    i32 size
+}
+
+
+// ============================================================
+// 6. INHERITANCE: extends
+// ============================================================
+
+// A class extends at most one other class. It gets all of its fields, methods and accessors, and adds its own.
+// extends(Base) is a clause after the closing brace.
+[class(Inheritance.Abstract)]
+const People = class {
+    String name = ""
+    [field(Visibility.Protected)]
+    i32 age = 0
+
+    [method(Inheritance.Abstract)]
+    const role = method() String   // no body: a class that extends People must write it
+
+    const describe = method() String {   // not virtual: chosen by the type of the name
+        return "a person"
+    }
+
+    [method(Inheritance.Virtual)]
+    const greet = method() String {      // virtual: a class that extends People may replace it
+        return String.join("hello, I am ", this.name)
+    }
+
+    [method(Ownership.Static)]
+    const species = method() String {
+        return "human"
+    }
+}
+
+[class(Inheritance.Final)]
+const Student = class {
+    i32 rollNumber = 0
+
+    [method(Inheritance.Override)]
+    const role = method() String {
+        return "student"
+    }
+
+    const describe = method() String {   // same name as a method that is not virtual: it hides the base one, no error
+        return "a student"
+    }
+
+    // override replaces a virtual method of the base class. super is the base class, so the old version can still be used.
+    [method(Inheritance.Override, Inheritance.Final)]
+    const greet = method() String {
+        return String.join(super.greet(), ", a student")
+    }
+
+    [method(Ownership.Static, Inheritance.Final, Visibility.Public)]
+    const firstRoll = method() i32 {
+        return 1
+    }
+} extends(People)
+
+// A subclass is created with the fields of every class it extends, by name.
+const bob = Student(name = "bob", rollNumber = 7)
+const hello = bob.greet()                     // "hello, I am bob, a student"
+const bob_role = bob.role()                    // "student"
+
+// Static methods are called on the class, not on a value:
+const species = People.species()              // "human", a Student has it too: Student.species()
+const first = Student.firstRoll()
+
+// Rules:
+//   - A virtual method is chosen by the class of the value. A method that is not virtual is chosen by the type of the name.
+//   - A method with the same name and parameter types as a virtual base method replaces it, with or without
+//     [method(Inheritance.Override)]. When override is written and the base has no such virtual method, it is an error.
+//     This catches misspelled names and changed parameters.
+//   - A method with the same name and parameter types as a non-virtual base method hides it, it is not an error.
+//     Through the base type the base method still runs.
+//   - Overloaded versions are matched one by one: a class that extends can replace some of the versions of an inherited
+//     method and add new ones. The versions it does not write stay as the base class has them, so
+//     const hello = method(i32 n) { ... } in a subclass of Greeter adds a version and keeps the three of Greeter.
+//   - A method that replaces another is virtual itself, so a class that extends again may replace it, unless it is final.
+//   - abstract includes virtual: an abstract method is replaced by every class that extends.
+//   - An abstract class cannot be created: People(name = "x") is an error.
+//   - A final class cannot be extended, and a final method cannot be replaced. final needs a virtual method or an override.
+//   - An object is always freed as the class it was made from: its destructor runs first, then the destructors of the
+//     classes it extends, so a destructor always behaves as a virtual one (section 4).
+//   - A class has one base class. There is no multiple inheritance, interfaces and traits cover that.
+//   - A private field can be used only inside the class that declares it, a protected one also in its subclasses.
+// const bad = People(name = "x")                  // ERROR: People is abstract
+// const bad = class { } extends(Student)                // ERROR: Student is final
+// const bad = Student(name = "x").age             // ERROR: age is protected, it can only be used in People and its subclasses
+// const greet = method() String { ... }   // in Student, without [method(Inheritance.Override)]: fine, it replaces the virtual greet of People
+// [method(Inheritance.Override)] const role2 = method() String { ... }                 // ERROR: People has no virtual role2 to replace
+// [method(Inheritance.Override)] const describe = method() String { ... }              // ERROR: describe of People is not virtual
+
+
+// ============================================================
+// 7. INTERFACES: implements
+// ============================================================
+
+// An interface is a list of abstract methods: each one is written without a body and marked [method(Inheritance.Abstract)],
+// exactly like an abstract method of a class (section 6) or a required method of a trait (section 8).
+// A class that implements the interface promises to have every one of them with the same parameters and return type.
+// A class can implement as many interfaces as it likes.
+const ISpeak = interface {
+    [method(Inheritance.Abstract)]
+    const speak = method() String
+}
+
+const IWalk = interface {
+    [method(Inheritance.Abstract)]
+    const walk = method(i32 steps) i32
+}
+
+// An interface can extend other interfaces and then lists their methods too.
+const IMove = interface {
+    [method(Inheritance.Abstract)]
+    const stop = method()
+} extends(IWalk)
+
+const Dog = class {
+    String name = ""
+    i32 total = 0
+
+    [method(Inheritance.Virtual)]
+    const speak = method() String {
+        return "woof"
+    }
+
+    const walk = method(i32 steps) i32 {
+        this.total = this.total + steps
+        return this.total
+    }
+} implements(ISpeak, IWalk)
+
+// A class that misses a method is a compile error that names it:
+// const Cat = class { } implements(ISpeak)      // ERROR: Cat does not have speak, which ISpeak requires
+// A class may both extend and implement: extends comes first.
+const Puppy = class {
+    [method(Inheritance.Override)]
+    const speak = method() String {
+        return "yip"
+    }
+
+    const stop = method() {
+        print("stopped")
+    }
+} extends(Dog) implements(IMove)
+// Puppy inherits speak and walk from Dog, and must write stop because IMove requires it.
+
+
+// ============================================================
+// 8. TRAITS: CODE THAT A CLASS USES
+// ============================================================
+
+// A trait is a piece of code that is shared between classes. It is not implemented, it is used: the class takes it with
+// the use(...) clause after its body, like extends(...) and implements(...), and everything in the trait becomes part
+// of the class, as if it had been written there.
+//   - An interface is a promise about what a class has: the class implements it, and it can be used as a type.
+//   - A trait is the code itself: the class uses it. A trait has fields, methods with bodies, accessors and required methods.
+// A trait is not a type. A name cannot be declared as a trait, and is(Trait) is not allowed. To use shared code
+// through one type, also give the class an interface.
+const Describes = trait {
+    String note = ""                      // a field: every class that uses the trait gets it
+
+    [method(Inheritance.Abstract)]
+    const describe = method() String      // required: the class that uses the trait must write it
+
+    // a method with a body: written once, and available in every class that uses the trait
+    const announce = method() {
+        print(String.join("this is ", this.describe()))
+    }
+}
+
+const Book = class {
+    String title = ""
+
+    const describe = method() String {
+        return this.title
+    }
+} use(Describes)                                // everything of Describes is now part of Book
+
+const novel = Book(title = "Dune", note = "a classic")    // note comes from the trait
+novel.announce()                                // prints "this is Dune"
+
+// A class can use several traits, and use them together with extends and implements, in the order extends,
+// implements, use:
+//   const Report = class { ... } extends(Document) implements(ISpeak) use(Describes, Counts)
+// A trait can use other traits with the same clause: const Rich = trait { ... } use(Describes).
+
+// When the class and a trait both have a member with the same name, the class wins over the trait, and the trait wins
+// over a member the class inherits from its base class.
+
+// When two traits have a member with the same name, it is a compile error, because the class would not know which one to take.
+// The class resolves it by writing a member with that name itself, which wins over both:
+const Greets = trait {
+    const hello = method() String { return "hello" }
+}
+const Welcomes = trait {
+    const hello = method() String { return "welcome" }
+}
+// const Clash = class { } use(Greets, Welcomes)         // ERROR: Greets and Welcomes both have hello, write hello in Clash
+const Host = class {
+    const hello = method() String {          // the class decides, and wins over both traits
+        return "welcome, friend"
+    }
+} use(Greets, Welcomes)
+const host = Host()
+const host_hello = host.hello()                          // "welcome, friend"
+
+// Static members of a trait are static members of each class that uses it, and each class has its own copy of them.
+// Only a class takes clauses after its body. A struct, an enum and a union have no extends, implements or use: when a type
+// needs a trait or an interface, write a class.
+// A class that uses a trait does not become a subtype of it.
+// A required method without the [method(Inheritance.Abstract)] attribute is an error, so a missing body is never silent:
+// const Bad = trait { const describe = method() String }    // ERROR: write [method(Inheritance.Abstract)], or give a body
+// const BadFace = interface { const speak = method() String }   // ERROR: the same in an interface, write [method(Inheritance.Abstract)]
+// const Short = class { } use(Describes)                    // ERROR: Short does not have describe, which Describes requires
+// const not_a_type = Describes(note = "x")            // ERROR: a trait cannot be created
+// Describes sample = novel                                  // ERROR: Describes is not a type
+
+
+// ============================================================
+// 9. POLYMORPHISM: ONE TYPE, MANY CLASSES
+// ============================================================
+
+// A value of a class can be used where its base class or any interface it implements is expected.
+People someone = bob                              // a Student where a People is expected
+ISpeak speaker = Dog(name = "rex")        // a Dog where an ISpeak is expected
+
+// Calling a virtual method uses the class of the value, not the type of the name:
+const who = someone.role()                        // "student", Student's version runs
+// A method that is not virtual uses the type of the name:
+const d_student = bob.describe()                  // "a student": bob is a Student
+const d_person = someone.describe()               // "a person": the same object, but someone is a People
+const sound = speaker.speak()                     // "woof"
+// With overloaded methods the version is chosen by the arguments first, from the methods of the type of the name,
+// and then, when that version is virtual, the class of the value decides which code runs.
+
+// So a collection can hold different classes behind one type:
+List<ISpeak> speakers = List<ISpeak>()
+speakers.push(Dog(name = "rex"))
+speakers.push(Puppy(name = "pip"))
+for (speakers) |animal| {
+    print(animal.speak())                         // woof, then yip
+}
+
+// Only what the type promises can be used through it:
+// someone.rollNumber                             // ERROR: People has no rollNumber, only Student does
+
+// A type test asks what a value really is. is gives a bool, and as gives an Optional of that class.
+const is_student = someone.is<Student>()           // true
+const as_student = someone.as<Student>()           // Optional<Student>
+match (as_student) {
+    case (Some) |s| { print(s.value.rollNumber) }
+    case (None)     { print("not a student") }
+}
+
+
+// ============================================================
+// 10. GENERIC CLASSES
+// ============================================================
+
+// A class can have a type parameter, written in angle brackets after class, like a struct.
+const Stack = class<T> {
+    List<T> items = List<T>()
+
+    const push = method(T item) {
+        this.items.push(item)
+    }
+
+    const pop = method() Optional<T> {
+        if (this.items.len() == 0) { return Optional.None }
+        return Optional.Some(this.items.pop())
+    }
+}
+
+const numbers = Stack<i32>()
+numbers.push(1)
+numbers.push(2)
+const top = numbers.pop()                         // Optional<i32>, Some with value 2
+
+
+// ============================================================
+// 11. STRUCT OR CLASS?
+// ============================================================
+
+//                         struct                      class
+//   value                 non-primitive, shared       non-primitive, shared
+//   clauses after body    none                        extends one class, implements interfaces, use traits
+//   methods               const name = function       const name = method, may be overloaded and overridden
+//   fields                Type name, default optional  declarations, always with a value
+//   equality ==           the same value              the same value
+//   use it for            plain data                  things with behavior that are used through a common type
+//
+// The same data as a struct and as a class, side by side:
+const PointValue = struct {
+    f64 x
+    f64 y
+}
+const PointObject = class {
+    f64 x = 0.0
+    f64 y = 0.0
+}
+const moved_value = PointValue(x = 1.0, y = 2.0).clone(x = 5.0)    // a struct makes a changed copy with clone(x = ...)
+const object_copy = PointObject(x = 1.0).clone()                    // a class has the plain clone
+const PointLabelled = class {
+    String label = ""
+} extends(PointObject)                                              // only a class can extend another one
+// const PointLabelledValue = struct { String label } extends(PointValue)    // ERROR: a struct has no extends clause
+
+// Use a struct for plain data. Use a class when types need inheritance, interfaces or traits, so that several
+// types can be used through one common type.
+
+
+// ============================================================
+// 12. STATIC MEMBERS
+// ============================================================
+
+// A static member belongs to the class itself, not to the objects made from it. There is one copy, and it is reached
+// through the name of the class: Counter.created. A field, a method and an accessor can be static, each marked in the
+// attribute of its kind:
+//   [field(Ownership.Static)]       one value for the whole class
+//   [method(Ownership.Static)]      a method called on the class, with no this
+//   [accessor(Ownership.Static)]    an accessor read and written on the class
+// A subclass has no copy of its own: Student.firstRoll() reaches the static method of the class it was written in.
+const Counter = class {
+    [field(Ownership.Static, Visibility.Private)]
+    i32 _created = 0                        // one counter for every Counter
+
+    String label = ""
+
+    [accessor(Ownership.Static)]
+    const created = get {                   // reads the static field, so it is static as well
+        return Counter._created
+    }
+
+    [method(Ownership.Static)]
+    const reset = method() {
+        Counter._created = 0                // a static method uses static members
+    }
+
+    const constructor = method(String label) {
+        this.label = label
+        Counter._created = Counter._created + 1    // a method that is not static may use a static member
+    }
+
+    const describe = method() String {
+        return String.join(this.label, String(Counter.created))
+    }
+}
+
+const first_counter = Counter(label = "a")
+const second_counter = Counter(label = "b")
+const created_count = Counter.created             // 2, read on the class and not on a value
+Counter.reset()
+
+// Rules:
+//   - A static member is used through the class name: Counter.created. It is not reached through a value, so
+//     first_counter.created is an error, and inside the class it is Counter._created and not this._created.
+//   - A static method or accessor has no this and no super, since it runs without an object.
+//   - A member that is not static may use a static member: the object belongs to the class, so the class is in reach.
+//   - A static member may not use a member that is not static: there is no object to take it from.
+//   - An accessor that reads or assigns a static field of its class must be static as well. Otherwise it would look like a
+//     property of each object while it changes something shared by all of them. (A method has no such rule: it may
+//     touch a static field without being static.)
+//   - A static field is set up once, when the class is first used, with its value written in the declaration.
+//   - Static members of a class are inherited by name, but there is still one copy.
+//   - A constructor and a destructor cannot be static.
+// first_counter.created                          // ERROR: created is static, write Counter.created
+// [method(Ownership.Static)]
+// const bad = method() String { return this.label }       // ERROR: a static method has no this, so no label
+// const wrong = get { return Counter._created }           // ERROR: reads a static field, so it must be [accessor(Ownership.Static)]
+
+
+// ============================================================
+// 13. METHODS AS VALUES
+// ============================================================
+
+// A method is called on an object: greeter.greet("bob"). The name of a method on its own, greeter.greet without a call,
+// is not a function value. To pass a method on, or to return it, write a function that calls it. That function is a
+// closure (04-functions section 15), so it keeps the object it uses alive for as long as it exists.
+const Polite = class {
+    String name = ""
+
+    const greet = method(String other) String {
+        return String.join(String.join("hi ", other), this.name)
+    }
+}
+const ann_greeter = Polite(name = "ann")
+
+const greet_with_ann = function(String other) String {
+    return ann_greeter.greet(other)                // a closure over ann_greeter
+}
+const ann_says = greet_with_ann("bob")             // "hi bobann"
+
+// It can be handed to any function that takes a callback, and returned from a function:
+const run_on = function(function(String) String action, String text) String {
+    return action(text)
+}
+const via_callback = run_on(greet_with_ann, "cy")
+
+const bind_greeter = function(Polite target) function(String) String {
+    const bound = function(String other) String {
+        return target.greet(other)                 // target lives as long as bound does
+    }
+    return bound
+}
+const greet_with_bea = bind_greeter(Polite(name = "bea"))
+const bea_says = greet_with_bea("dan")             // "hi danbea"
+
+// Each call of bind_greeter makes a new function with its own target, so two bound methods never share an object.
+
+
+// ============================================================
+// 14. ONE CLASS, SEVERAL ROLES
+// ============================================================
+
+// A class extends one class. Everything else it takes on comes from interfaces, which are promises that make it usable
+// through a type, and traits, which are code that it gets. Together they cover what multiple inheritance is used for.
+const IFly = interface {
+    [method(Inheritance.Abstract)]
+    const fly = method() String
+}
+const ISwim = interface {
+    [method(Inheritance.Abstract)]
+    const swim = method() String
+}
+const Logs = trait {
+    const log = method(String text) {
+        print(text)
+    }
+}
+const Animal = class {
+    String name = ""
+}
+
+const Duck = class {
+    const fly = method() String {
+        return "flap"
+    }
+    const swim = method() String {
+        return "paddle"
+    }
+} extends(Animal) implements(IFly, ISwim) use(Logs)
+
+const duck = Duck(name = "dax")
+IFly flyer = duck                                  // a Duck where an IFly is expected
+ISwim swimmer = duck                               // the same object through another type
+Animal animal_view = duck                          // and through its base class
+const fly_sound = flyer.fly()                      // "flap"
+const swim_sound = swimmer.swim()                  // "paddle"
+duck.log("quack")                                  // from the trait Logs
+
+// Rules:
+//   - The order of the clauses is extends, implements, use, as in section 8.
+//   - Each interface is a type that the class can be used as. A trait is not a type, so Logs sample = duck is an error.
+//   - What the class takes from two traits must not clash, see section 8.
+// Logs bad = duck                                 // ERROR: Logs is a trait, not a type
+
+
+// ============================================================
+// 15. YOUR OWN ERRORS
+// ============================================================
+
+// Error is a class that comes with the language, and it implements the interface IError (06-errors section 3): IError lists
+// String message and i32 code. A class that implements IError is an error of its own kind. It can carry more than a message,
+// and it can be thrown like an Error.
+const NotFound = class {
+    String message = ""
+    i32 code = 404
+    String path = ""
+} implements(IError)
+
+const load = function(String path) {
+    throw(NotFound(message = String.join("missing ", path), path = path))
+}
+
+// catch receives the error as an IError, so message and code are always there. To use what only NotFound has, ask for it
+// with as, which gives an Optional like in section 9:
+let reason = ""
+try {
+    load("/a")
+} catch |e| {
+    match (e.as<NotFound>()) {
+        case (Some) |found| { reason = found.value.path }       // "/a"
+        case (None)         { reason = e.message }               // any other error
+    }
+}
+const was_not_found = reason == "/a"
+
+// Rules:
+//   - A class that implements IError must have message and code, its own or inherited. Without them it is a compile error that
+//     names the missing one. The values come from the object, so they can have defaults like code = 404 above.
+//   - throw takes an Error(message = ..., code = ...) or an object of a class that implements IError, or that extends Error,
+//     which has them already. Nothing else can be thrown.
+//   - e.is<T>() asks whether the error is a T, and e.as<T>() gives an Optional of it.
+//   - An error that nothing catches ends the program with its message and its code, as in 06-errors section 6.
+//   - A struct cannot implement IError, because only a class takes an implements clause.
+// const Bad = class { String message = "" } implements(IError)    // ERROR: Bad does not have code, which IError requires
+// const Other = class { } implements(Error)                        // ERROR: Error is a class: write implements(IError) or extends(Error)
+// throw("x")                                                       // ERROR: only an Error can be thrown
+
+// Several roles for one class, without multiple inheritance, are shown in section 14. Operators on a class are methods marked
+// [operator(...)], see 09-attributes-and-reflection section 6.

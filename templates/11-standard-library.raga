@@ -1,0 +1,213 @@
+// Standard library: the built-in functions, constructors and methods that the other templates use
+// This is a reference list. It invents nothing: every entry is used somewhere in 01 to 10, and its last word
+// points to the template that explains it.
+//
+// Naming (01-basics): built-in functions and attributes are lower_snake_case, built-in methods are lowerCamelCase,
+// the fields of built-in structs are lower_snake_case.
+// A function is called with parentheses: len(items), read_line(), and a call with one simple operand may leave them out (04-functions
+// section 12). A method is called on a value: items.len().
+// A signature is written as a function head: name(Type parameter, ...) ReturnType.
+
+
+// ============================================================
+// 1. BUILT-IN FUNCTIONS
+// ============================================================
+
+//   print(value)                          shows a value on its own line                                 (04-functions)
+//   read_line() String                    reads one line of input, without the end of line              (03-control-flow)
+//   len(value) usize                      the number of elements or characters, the same as value.len()  (02-data-structures)
+//   range(from, to, step = 1)             the numbers from `from` up to but not including `to`, for loops (03-control-flow)
+//   sleep(milliseconds)                   pauses the program                                            (not shown yet)
+//   typeof(value)                         the type of a value, known when the program is built          (01-basics)
+//   sizeof<T>() usize                     the size of a type in bytes                                   (08-memory)
+//   alignof<T>() usize                    the alignment of a type in bytes                              (08-memory)
+//   alloc<T>(count = 1) ptr<T>            room for count values of a primitive type T, filled with zeros (08-memory)
+//   free(ptr<T> p)                        gives memory from alloc back, free(null) does nothing         (08-memory)
+//   compile(expression)                   runs the expression while the program is built                (09-attributes-and-reflection)
+//   reflect<T>() TypeInfo                 describes the type T as data                                  (09-attributes-and-reflection)
+//   attributes_of(thing, String name) Array<AttributeInfo>      the attributes with that name           (09-attributes-and-reflection)
+//   get_field(ptr<T> p, String name) Optional<Any>              reads a field by name                    (09-attributes-and-reflection)
+//   set_field(ptr<T> p, String name, Any value) Result<bool, String>   writes a field by name           (09-attributes-and-reflection)
+//   throw(Error e)                        raises an error, see 06-errors
+//   import(String path) Module            the Module of another file, see 10-modules
+
+
+// ============================================================
+// 2. CONSTRUCTORS AND CONVERSIONS
+// ============================================================
+
+// A non-primitive value is made by a literal or by its constructor, which is the same thing: String("abc") is "abc",
+// Array(1, 2, 3) is {1, 2, 3}, List(1, 2, 3) is [1, 2, 3], Tuple(1, 2.5) is (1, 2.5), and the empty forms are
+// {}, [] and (). The type of an empty literal comes from the context.
+//   "abc"                          String                                                  (01-basics)
+//   {1, 2, 3}                      Array<i32>                                              (02-data-structures)
+//   [1, 2, 3]                      List<i32>                                               (02-data-structures)
+//   List<i32>()                    an empty List, the type is written                      (02-data-structures)
+//   (1, 2.5)                       Tuple<i32, f64>                                         (02-data-structures)
+//   Set(1, 2, 3)                   Set<i32>, no literal                                    (02-data-structures)
+//   Map("a", 1)                    Map<String, i32>, no literal, arguments are key, value, key, value (02-data-structures)
+//   Weak(value)                    Weak<T>, does not keep the value alive                  (08-memory)
+//   Any(value)                     Any, holds a value of any type                          (09-attributes-and-reflection)
+//   Module                         the value of import(path): its exported names are reached with a dot (10-modules)
+//   Error(message = ..., code = ...)   Error                                               (06-errors)
+//   Type()                         the default value of an enum or a primitive: Color() is its first name (05-structs-enums-unions)
+// A primitive type name converts a value: i32(x), u8(x), f64(x), char(x), bool(x)           (01-basics)
+// An enum type name turns a number into a member: Color(2)                                 (05-structs-enums-unions)
+
+
+// ============================================================
+// 3. METHODS OF EVERY NON-PRIMITIVE VALUE
+// ============================================================
+
+//   value.clone()                         a separate copy, one level deep                              (01-basics, 02-data-structures)
+// == on a non-primitive value compares references. No other method compares contents, except String.equals.
+
+
+// ============================================================
+// 4. STRING
+// ============================================================
+
+//   String.join(String a, String b) String        a new String, a followed by b                         (01-basics)
+//   text.len() usize                              the number of characters                             (01-basics)
+//   text.upper() String                           a new String in upper case                           (01-basics)
+//   text.contains(String part) bool               true when part is inside text                        (01-basics)
+//   text.equals(String other) bool                true when both have the same text                    (01-basics)
+//   text.split(String separator) List<String>     the parts between the separator, new Strings         (01-basics)
+//   text.trim() String                            a new String without the spaces at both ends         (01-basics)
+//   text.replace(String from, String to) String   a new String where every match of from became to     (01-basics)
+//   text.lower() String                           a new String in lower case                           (01-basics)
+//   text.index_of(String part) usize              the position of the first match, throws when it is not inside (01-basics)
+//   text.get(usize index) char                    the character at the position, throws when there is none      (01-basics)
+//   text.slice(usize start, usize end) String     the characters from start up to, not including, end, throws   (01-basics)
+//   String.format(String format, values...) String   text made with the printf format: %s %d %u %x %X %o %c %f %e %g %p %%  (01-basics)
+//   $(String format, values...) String               the same as String.format, written shorter                   (01-basics)
+// A String is immutable: no method changes it.
+
+
+// ============================================================
+// 5. ARRAY, LIST, TUPLE
+// ============================================================
+
+//   items.get(usize index) T              the element at the position, throws when it does not exist (02-data-structures)
+//   items.set(usize index, T value)       replaces the element at the position                          (02-data-structures)
+//   items.len() usize                     the number of elements                                        (02-data-structures)
+//   items.contains(T value) bool          true when an element is == to the value, Array and List       (02-data-structures)
+// Only a List can grow or shrink:
+//   list.push(T value)                    adds at the end                                               (02-data-structures)
+//   list.pop() T                          removes and gives the last element, throws when empty         (02-data-structures)
+//   list.unshift(T value)                 adds at the front                                             (02-data-structures)
+//   list.to_array() Array<T>              a new Array with the elements of the List, in the same order  (09-attributes-and-reflection)
+//   list.shift() T                        removes and gives the first element, throws when empty        (02-data-structures)
+//   list.insert(usize index, T value)     puts the value in at the position, later elements move up   (02-data-structures)
+//   list.remove(usize index) T            removes and gives the element at the position, throws if none (02-data-structures)
+//   list.reverse()                        turns the List around, in place                               (02-data-structures)
+//   list.sort(function(T, T) i32 compare) sorts in place: negative when a is first, 0 equal, positive  (04-functions)
+// A Tuple has get and set with a position that is a literal, and every slot has its own type.
+
+
+// ============================================================
+// 6. SET AND MAP
+// ============================================================
+
+//   set.add(T value)                      adds a value, a value that is already there is not added      (02-data-structures)
+//   set.remove(T value)                   removes a value                                               (02-data-structures)
+//   set.contains(T value) bool            true when the value is in the Set                             (02-data-structures)
+//   set.len() usize                       the number of values                                          (02-data-structures)
+//   map.set(K key, V value)                  adds or replaces the value of a key                           (02-data-structures)
+//   map.get(K key) V                          the value of a key, throws when the key is not there          (02-data-structures)
+//   map.has(K key) bool                       true when the key is there                                    (02-data-structures)
+//   map.remove(K key)                         removes a key and its value                                   (named in 08-memory)
+// The keys of a Map are hashed, and a key is a primitive value or a String. A String key is found by its text, with String.equals, and a primitive key by its value. Set values and contains use ==.
+
+
+// ============================================================
+// 7. MATH, SYSTEM, FILE, TIME AND RANDOM
+// ============================================================
+
+// These are static methods, called with the name of the type like String.join.
+//   Math.abs(T value) T                   the number without its sign, any signed integer or float       (01-basics)
+//   Math.min(T a, T b) T                  the smaller of two numbers of one type                         (01-basics)
+//   Math.max(T a, T b) T                  the larger of two numbers of one type                          (01-basics)
+//   Math.pow(f64 base, f64 exponent) f64  base to the power of exponent                                  (01-basics)
+//   Math.sqrt(f64 value) f64              the square root                                                (01-basics)
+//   Math.floor Math.ceil Math.round Math.trunc (f64 value) f64      rounding, the result is a whole f64      (01-basics)
+//   Math.sin Math.cos Math.tan Math.asin Math.acos Math.atan (f64 value) f64    angles in radians           (01-basics)
+//   Math.atan2(f64 y, f64 x) f64          the angle of the point (x, y) from the origin                  (01-basics)
+//   Math.exp Math.log Math.log10 (f64 value) f64     e to the power, the natural logarithm, the logarithm to base 10  (01-basics)
+//   Math.pi  Math.e                       the constants, f64                                             (01-basics)
+//   System.exit(i32 code)                 ends the program at once with that status, finally does not run (06-errors)
+//   System.args() Array<String>           the words after the program name                              (06-errors)
+//   System.env(String name) Result<String, String> the value of an environment variable, or why there is none   (06-errors)
+//   System.trace(IError error) String     the call stack of a caught error as text                       (06-errors)
+//   File.read(String path) Result<String, String>   the text of the file, or why it could not be read   (06-errors)
+//   File.write(String path, String text) Result<bool, String>    replaces the file, Ok(true) or the reason   (06-errors)
+//   File.append(String path, String text) Result<bool, String>   adds at the end of the file               (06-errors)
+//   File.exists(String path) bool         true when there is a file or a folder at the path              (06-errors)
+//   Time.now() i64                        the milliseconds since 1 January 1970 UTC                      (06-errors)
+//   Random.int(i32 low, i32 high) i32     a whole number from low up to, not including, high             (06-errors)
+//   Random.float() f64                    a float from 0.0 up to, not including, 1.0                     (06-errors)
+//   Random.seed(u64 value)                makes the numbers repeat                                       (06-errors)
+// The names Math, System, File, Time and Random are built in and cannot be declared again at the top level.
+
+// PRINT: print writes the text of a value on a line. It writes a value the way its literal or its creation is written:
+//   primitives as written: 5  2.5  true  x          a String without the quotes: hi
+//   Array {1, 2}   List [1, 2]   Tuple (1, 2.5)   Set Set(1, 2)   Map Map("a", 1)
+//   struct or class object  Point(x = 1.0, y = 2.0)       enum member  Color.Red
+//   tagged union variant  Shape.Circle(radius = 2.0)      Optional  Optional.Some(5)  Optional.None
+// A function prints as function, and a pointer as its address.
+
+
+// ============================================================
+// 8. OPTIONAL, RESULT, ERROR
+// ============================================================
+
+//   Optional.Some(value)  Optional.None           the two variants, the field of Some is value          (05-structs-enums-unions)
+//   Result.Ok(value)  Result.Err(reason)          the two variants, the fields are value and reason     (05-structs-enums-unions)
+//   optional.unwrap() T                           the value, throws an Error when there is none         (06-errors)
+//   optional.or_throw() T                         the same as unwrap, named for giving up               (06-errors)
+//   optional.or_else(function() T replace) T      the value, or what the block gives when there is none  (06-errors)
+//   result.unwrap() T                             the value, throws an Error with the reason when Err   (06-errors)
+//   result.or_throw() T                           the same as unwrap, named for giving up               (06-errors)
+//   result.unwrapOr(T fallback) T                 the value, or the fallback when Err                   (06-errors)
+//   result.or_else(function(E reason) T replace) T   the value, or what the block gives for the reason  (06-errors)
+//   Error has the fields message (String) and code (i32).                                               (06-errors)
+
+
+// ============================================================
+// 9. WEAK AND ANY
+// ============================================================
+
+//   weak.get() Optional<T>                Some while the value is alive, None after it was freed        (08-memory)
+//   weak.alive() bool                     true while the value is alive                                 (08-memory)
+//   any.typeName() String                 the name of the type inside, known when the program runs      (09-attributes-and-reflection)
+//   any.is<T>() bool                      true when the type inside is T                                (09-attributes-and-reflection)
+//   any.as<T>() Optional<T>               Some when the type inside is T, None otherwise                (09-attributes-and-reflection)
+
+
+// ============================================================
+// 10. POINTERS AND C LAYOUT
+// ============================================================
+
+//   &x                                    a ptr<T> to a variable                                        (08-memory)
+//   p.*                                   the value that p points to, to read or to write               (08-memory)
+//   p.at(usize i) ptr<T>                  the pointer to element i, without any check of the position   (08-memory)
+//   value.raw() ptr<u8>                   where the fields of a struct or union are, in C layout        (05-structs-enums-unions)
+//   Type.fromRaw(ptr<u8> p) Type          a new value copied from an address in C layout                (05-structs-enums-unions)
+
+
+// ============================================================
+// 11. REFLECTION TYPES
+// ============================================================
+
+// Plain structs that describe things, see 09-attributes-and-reflection. Their fields are lower_snake_case.
+//   TypeInfo       name, kind, size, alignment, fields, variants, attributes
+//   FieldInfo      name, type_name, attributes
+//   VariantInfo    name, fields
+//   AttributeInfo  name, arguments
+//   BindingInfo    name, kind, type_name, attributes
+//   Kind           the enum Primitive, Struct, Enum, Union, Function, Field, Heap, Method
+//   Op             the enum of operators for [operator(...)]
+//   Visibility     the enum Public, Protected, Private         the modifiers of [class(...)], [method(...)], [field(...)],
+//   Inheritance    the enum Final, Abstract, Virtual, Override  [accessor(...)], [get(...)], [set(...)]
+//   Ownership      the enum Instance, Static                    (07-classes-and-traits section 2)
+//   binding.invoke(Array<Any> arguments) Result<Any, String>    runs a binding found by reflection (through its call hook, if it has one)

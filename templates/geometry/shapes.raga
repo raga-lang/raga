@@ -1,0 +1,19 @@
+// The file that 10-modules.raga imports with import("./geometry/shapes").
+// It shares three names with one export call at its end. square stays private to this file.
+
+const pi = 3.14159
+
+const Point = struct {
+    f64 x
+    f64 y
+}
+
+const circle_area = function(f64 radius) f64 {
+    return pi * radius * radius
+}
+
+const square = function(f64 side) f64 {      // private: not in the export call
+    return side * side
+}
+
+export(pi, Point, circle_area)

@@ -1,0 +1,220 @@
+// Data structures: the built-in collections Array, List, Tuple, Set and Map
+// Creating them, reading and changing them, sharing, copying and comparing them, and their type arguments
+//
+// They are non-primitive values (01-basics section 10): the name holds a reference, and an assignment shares the value.
+// Array, List and Tuple have a literal: {1, 2, 3}, [1, 2, 3] and (1, 2.5), the same as their constructors. Set and Map
+// have no literal, they are created with Set(...) and Map(...).
+// Each one is generic, written like your own generic types (05-structs-enums-unions section 7).
+
+
+// ============================================================
+// 1. OVERVIEW
+// ============================================================
+
+//              size        elements                      order   duplicates
+//   Array<T>   fixed       all of one type T             yes     allowed
+//   List<T>    can grow    all of one type T             yes     allowed
+//   Tuple<..>  fixed       one type for each slot        yes     allowed
+//   Set<T>     can grow    all of one type T             no      not allowed
+//   Map<K, V>  can grow    keys of K, values of V        no      keys are unique
+//
+// An element can be replaced in place in an Array, a List and a Tuple. A Set and a Map change by adding
+// and removing. Looping over them is in 03-control-flow section 5.
+
+
+// ============================================================
+// 2. ARRAY: FIXED SIZE
+// ============================================================
+
+// --- Array: an ordered sequence, fixed size, all elements have the same type ---
+// Once created, an Array can neither grow nor shrink, but an element can be replaced in place.
+const days = {1, 2, 3}       // Array<i32>
+Array<f64> ws = {1.5, 2.5}   // explicit element type
+const first3 = days.get(0)        // 1 (i32)
+const dlen   = days.len()         // 3 (usize)
+const dhas   = days.contains(2)   // true
+// const mixed = {1, 2.5}    // ERROR: every element must have the same type, use (1, 2.5)
+days.set(0, 9)                    // OK: replace the element at index 0, now 9, 2, 3
+// days.set(0, 2.5)               // ERROR: the element must stay i32
+// days.set(3, 9)                 // ERROR: index 3 does not exist, an Array cannot grow
+// days.push(4)                   // ERROR: an Array has a fixed size
+const same_days = days == {1, 2, 3}  // false: two separate Arrays, even though the contents are equal
+
+
+// ============================================================
+// 3. LIST: GROWS AND SHRINKS
+// ============================================================
+
+// --- List: an ordered, growable and mutable sequence, all elements have the same type ---
+const nums = [1, 2, 3]        // List<i32>
+List<f64> fs = [1.5, 2.5]     // explicit element type
+const none = List<i32>()          // an empty List<i32>: pass the type in angle brackets
+nums.push(4)                      // add at the end:      1, 2, 3, 4
+const last = nums.pop()           // remove from the end: returns 4, list is 1, 2, 3
+nums.unshift(0)                   // add at the front:    0, 1, 2, 3
+const head = nums.shift()         // remove from the front: returns 0, list is 1, 2, 3
+const top  = nums.get(0)          // 1 (i32)
+// pop, shift and get throw an Error when there is nothing to give. Check len first when the List may be empty.
+const size = nums.len()           // 3 (usize)
+nums.set(0, 10)                   // replace the element at index 0
+const has2 = nums.contains(2)     // true
+
+// Putting in, taking out and turning around, at any position:
+List<String> letters = ["a", "b", "d"]
+letters.insert(2, "c")            // a, b, c, d: the value goes in at the position, later elements move up
+const removed = letters.remove(0) // "a": the element at the position leaves and is given back, b, c, d remain
+letters.reverse()                 // d, c, b: the List itself is turned around, nothing is returned
+// letters.remove(9)              // throws an Error: there is no element at that position, check len first
+// A list can be sorted with a callback, see 04-functions section 10.
+// const empty = []               // ERROR: nothing says what the elements are, write List<i32> empty = [] or List<i32>()
+
+
+// ============================================================
+// 4. TUPLE: ONE TYPE FOR EACH SLOT
+// ============================================================
+
+// --- Tuple: a fixed number of values, each may have a different type ---
+// The position gives each value its meaning: slot 0 and slot 1 are different things.
+// Like an Array it cannot grow or shrink, but a slot can be replaced in place.
+const pair = (1, 2.5)        // Tuple<i32, f64>
+const t0   = pair.get(0)          // 1 (i32)
+const t1b  = pair.get(1)          // 2.5 (f64)
+pair.set(0, 9)                    // OK: slot 0 is now 9, (9, 2.5)
+// pair.set(1, 7)                 // ERROR: slot 1 is f64, write 7.0
+// pair.set(2, 1)                 // ERROR: there is no slot 2, a Tuple cannot grow
+
+// The position of get and set is a literal (or a const made from one), because each slot has its own type and the
+// type of the result must be known when the program is built. A position outside the Tuple is a compile error,
+// not a thrown Error.
+const slot = 1
+const t1c = pair.get(slot)        // 2.5 (f64): slot is a const made from a literal
+let which = 0
+// const bad = pair.get(which)    // ERROR: which is a variable, the type of the slot is not known. Use an Array when
+//                                // every value has the same type and the position is computed.
+// const out = pair.get(5)        // ERROR: a Tuple of two has no slot 5
+
+
+// ============================================================
+// 5. MAP: KEY TO VALUE
+// ============================================================
+
+// --- Map: key -> value, a hash table ---
+// A Map is flat: one level of key -> value pairs. All keys have one type K and all values have one type V.
+// It is not a nested JSON-like object. To nest, make the value another collection: Map<String, List<i32>>.
+// A Map is a hash table: a key is turned into a number (its hash) that says where to look, so finding a key does not
+// walk through the whole Map. A key is a primitive value or a String, and nothing else. Two keys are the same key when:
+//   - a primitive (integer, float, char, bool): the values are equal
+//   - a String: the text is equal (the one place where a collection compares text and not references, because a
+//     key that is typed again must find the same entry)
+// Any other type, a List, a struct, a class object, an enum, is not a key, because it would be found only by the very same
+// value and that is rarely what is wanted. To look up by what is inside such a value, build a String or a number from its
+// parts and use that as the key.
+const ages = Map("ann", 31, "bob", 27)                  // Map<String, i32>, the arguments are key, value, key, value
+ages.set("cy", 40)
+const age  = ages.get("ann")                            // 31 (i32)
+const known_cy = ages.has("cy")                          // true: the text is the same
+// ages.get("zz") throws an Error, because that key is not in the Map. Check has first.
+Map<i32, String> numbers = Map<i32, String>()           // integer keys work too
+// Map<List<i32>, String> bad = Map<List<i32>, String>()   // ERROR: a Map key is a primitive value or a String, not List<i32>
+numbers.set(7, "seven")
+const age_count = ages.len()                             // 3: ann, bob and cy
+const age_keys = ages.keys()                            // Array<String>, in no fixed order
+const age_values = ages.values()                        // Array<i32>, in the order of the keys
+ages.remove("cy")                                       // the key and its value are gone
+// Map<String> broken = Map<String>()                  // ERROR: a Map has two type arguments, Map<K, V>
+// contains on an Array or a List, and the values of a Set, use == like everywhere else.
+
+
+// ============================================================
+// 6. SET: NO DUPLICATES
+// ============================================================
+
+// --- Set: values without duplicates ---
+const ids = Set(1, 2, 3)          // Set<i32>
+ids.add(2)                        // still 3 values
+const has_two = ids.contains(2)    // true
+const id_count = ids.len()        // 3
+ids.remove(1)                     // 2 values remain
+
+// A Set holds each value once. What counts as the same value is == (section 7): equal primitives are the same value, and a
+// non-primitive value is the same only as the very same value. So a Set of Strings keeps two equal-looking Strings apart:
+const letter = "a"
+const one_value = Set(letter, letter)           // 1 value: the same String twice
+const two_values = Set("a", "a")                // 2 values: two separate Strings, even though the text is equal
+const one_size = one_value.len()                // 1
+const two_size = two_values.len()               // 2
+// To keep each text once, use a Map with the text as the key: a String key is found by its text (section 5).
+
+// A for loop goes over a Set in no fixed order, so only use what does not depend on the order.
+let id_total = 0
+for (ids) |id| {
+    id_total = id_total + id                    // 5 for the values 2 and 3, in whichever order they come
+}
+
+
+// ============================================================
+// 7. SHARING, COPYING AND COMPARING
+// ============================================================
+
+// --- const protects the name, not the value ---
+const shared = nums
+shared.push(5)                    // nums changes too: both names are one List
+// shared = [9]               // ERROR: cannot assign to const
+let   other = [1]
+other = [2]                   // OK: let can be rebound
+
+// A separate copy is made on purpose. Every non-primitive type has its own clone method.
+const copy = nums.clone()         // changing copy does not change nums
+
+// Comparing: == on a non-primitive value compares the reference, so a value equals itself and its clone does not.
+const same_nums = nums == shared           // true: shared refers to nums
+const same_copy = nums == copy             // false: copy is a separate List
+// Only String has a method that compares contents, equals, it compares the text. Nothing else compares
+// contents on its own: switch, contains and Set values use == as well. Only the String keys of a Map are found by text.
+// No other non-primitive type can be compared by contents. To compare two Lists, compare their elements one by one.
+const text1 = "hi"
+const same1 = text1.equals("hi")  // true: the same text
+const same2 = text1 == "hi"      // false: two separate Strings, == compares references, not the text
+// const bad = nums.equals(copy)          // ERROR: List has no equals
+// Every non-primitive type has its own clone, which makes a separate copy:
+//   String clone: a new String.     Array clone: a new Array.     List clone: a new List.
+//   Tuple  clone: a new Tuple.      Set   clone: a new Set.       Map  clone: a new Map.
+// clone copies one level: when the elements are non-primitive values, the copy holds the same elements as the original.
+
+// == on a non-primitive value asks whether two names refer to the very same value, not whether their contents are equal.
+const hv1 = [1]
+const hv2 = hv1
+const ref_same = hv1 == hv2                    // true: one List, two names
+const ref_diff = [1] == [1]            // false: two separate Lists, even though the contents are equal
+
+
+// ============================================================
+// 8. TYPE ARGUMENTS
+// ============================================================
+
+// Every built-in collection is generic, written the same way as your own generic types.
+//
+//   Array<T>           fixed size sequence of T
+//   List<T>            growable sequence of T
+//   Set<T>             unique values of T
+//   Map<K, V>          key of type K to value V
+//   Tuple<A, B, ...>   one type per slot, any number of slots
+//
+// The type argument is inferred from the values, and can be written to be explicit.
+const arr  = {1, 2, 3}               // Array<i32>
+const ls   = [1.5, 2.5]               // List<f64>
+const st   = Set(1, 2, 3)                 // Set<i32>
+const mp   = Map("a", 1)          // Map<String, i32>
+const tp   = (1, 2.5, true)          // Tuple<i32, f64, bool>
+
+// An empty collection has nothing to infer from, so write the type argument.
+const empty_list = List<i32>()             // an empty List<i32>
+Map<String, i32> empty_ages = Map<String, i32>()
+
+// Type arguments can nest.
+const grid = [{1, 2}, {3, 4}]        // List<Array<i32>>
+Map<String, List<i32>> scores = Map<String, List<i32>>()
+
+// Every element of an Array, List or Set has the same type, so this is an error:
+// const mixed = [1, 2.5]             // ERROR: i32 and f64, use (1, 2.5) for mixed types
+// A collection of your own types is the same, see 05-structs-enums-unions section 8.

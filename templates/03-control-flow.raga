@@ -1,0 +1,482 @@
+// Control flow: if / elif / else, switch (integers and chars), match (enums and tagged unions, explained in 05-structs-enums-unions),
+// while, loop, for, else after a loop, range, break, continue
+// Looping over Array, List, Set, Map and String, nested loops
+//
+// Every branch and loop is a statement: it runs blocks and does not give a value.
+// A block always has braces, and a condition is always in parentheses.
+// return belongs to functions only (04-functions, which comes next): inside a function it leaves the function, from any
+// depth of loops and ifs. break and continue belong to loops only.
+// This template uses the basic types of 01-basics. The collections that the loops go over (List, Array, Set, Map) are created
+// with literals as in 01-basics section 6, and are explained in 02-data-structures, which comes before this template.
+// return inside a loop, and leaving two loops at once from a function, are shown in 04-functions (loops and functions).
+
+
+// ============================================================
+// 1. IF, ELIF, ELSE
+// ============================================================
+
+// The condition must be a bool. There is no truthiness: an integer, a String or a List is not a condition.
+const temperature = 25
+let weather = ""
+
+if (temperature > 30) {
+    weather = "hot"
+} elif (temperature > 20) {
+    weather = "warm"
+} elif (temperature > 10) {
+    weather = "cool"
+} else {
+    weather = "cold"
+}
+// The first condition that is true runs its block and the rest are skipped.
+// elif and else are optional, and else must come last.
+
+// A single if, and an if with an else.
+let tip = 0
+if (temperature > 30) { tip = 1 }
+if (temperature > 30) { tip = 1 } else { tip = 2 }
+
+// Conditions are combined with && || ! and compared with == != < <= > >=.
+// && and || stop early: in `a && b`, b is only evaluated when a is true.
+const picnic = temperature > 20 && temperature < 30
+let advice = "stay in"
+if (picnic) { advice = "go outside" }
+
+// An if can be nested inside another block.
+if (picnic) {
+    if (temperature > 27) {
+        advice = "go outside, take water"
+    }
+}
+
+// Strings are compared with equals: == on a String compares references, like on any non-primitive value.
+const answer = "yes"
+let agreed = false
+if (answer.equals("yes")) { agreed = true }
+
+// if is a statement, so it gives no value and cannot be bound to a name.
+// const bad = if (picnic) { 1 } else { 2 }   // ERROR: if gives no value, assign inside the blocks instead
+// if (temperature) { }                       // ERROR: temperature is an i32, not a bool
+// if (picnic) advice = "x"           // ERROR: a block needs braces
+// if picnic { }                              // ERROR: a condition needs parentheses
+// else { }                                   // ERROR: else without a matching if
+
+// Several unrelated checks use several ifs, one chain picks exactly one branch.
+let chain = 0
+let separate = 0
+if (temperature > 20) { chain = 1 } elif (temperature > 10) { chain = 2 }           // chain is 1
+if (temperature > 20) { separate = separate + 1 }
+if (temperature > 10) { separate = separate + 1 }                                   // separate is 2
+
+
+// ============================================================
+// 2. MATCH AND SWITCH: CHOOSING BETWEEN SEVERAL CASES
+// ============================================================
+
+// match picks a case by the value of an enum or a tagged union. Enums and tagged unions are defined in
+// 05-structs-enums-unions, where match is explained in full. It is a statement like if and switch.
+//   match (shape) {
+//       case (Circle) |c| { ... }
+//       default           { ... }
+//   }
+//
+// match is only for enums and tagged unions. For integers and chars use switch.
+// match (404)                            // ERROR: match needs an enum or a tagged union, write switch (404)
+
+// switch picks a case by the value of an integer or a char. It is written like match and is a statement too.
+// Each case lists the value (or several, separated by commas) that selects it.
+const code = 404
+let message = ""
+switch (code) {
+    case (200)      { message = "ok" }
+    case (404)      { message = "not found" }
+    case (500, 503) { message = "server error" }    // either value selects this case
+    default         { message = "unknown" }
+}
+// message is "not found"
+
+// A char works the same way.
+const letter = 'e'
+let kind = "consonant"
+switch (letter) {
+    case ('a', 'e', 'i', 'o', 'u') { kind = "vowel" }
+    default                        { }
+}
+
+// A String cannot be switched on: it is a non-primitive value, and non-primitive values are compared by reference.
+// Compare its text with equals in an if.
+const command = "go"
+let moving = false
+if (command.equals("go") || command.equals("run")) { moving = true } elif (command.equals("stop")) { moving = false }
+
+// Rules:
+//   - The subject is an integer type or a char. A float, a bool, a String, an enum, a tagged union or
+//     another non-primitive value is an error: use if for a bool, match for an enum or a tagged union.
+//   - A case value is a literal (or a const made from one) of the same type as the subject.
+//   - The same value cannot appear in two cases.
+//   - A case runs its own block and then the switch ends. There is no fall through to the next case.
+//   - default is optional and must come last. With no default, a value that matches nothing runs nothing.
+//   - A switch is a statement and gives no value. Inside a function, return in a case leaves the function.
+// switch (1.5) { }                       // ERROR: a float cannot be switched on
+// switch (code) {                       // ERROR: 200 appears twice
+//     case (200) { }
+//     case (200) { }
+// }
+// switch (code) { case ("x") { } }   // ERROR: the subject is an i32, the case is a String
+// switch (command) { case ("go") { } }   // ERROR: a String cannot be switched on, use equals in an if
+// switch (code) { case (code) { } }          // ERROR: a case value must be a literal, code is a variable
+// switch (shape) { case (Circle) { } }      // ERROR: shape is an enum or a tagged union (05-structs-enums-unions), write match
+
+// break and continue in a case belong to the loop around the switch, like in a match.
+// A switch does not need break to end a case.
+// return in a case leaves the function around the switch, see 04-functions (loops and functions).
+
+
+// ============================================================
+// 3. WHILE
+// ============================================================
+
+// while runs its block again and again as long as the condition is true.
+// The condition is checked before every pass, so the block may run zero times.
+let countdown = 3
+while (countdown > 0) {
+    print(countdown)                      // 3, 2, 1
+    countdown = countdown - 1
+}
+
+// A while whose condition is false at the start never runs.
+let never = 0
+while (never > 5) {
+    never = never + 1
+}
+
+// The block must eventually make the condition false, or the loop never ends.
+// while (true) { }                       // an endless loop, write loop { } instead
+
+
+// ============================================================
+// 4. LOOP: UNTIL BREAK
+// ============================================================
+
+// loop has no condition, it runs until a break (or a return inside a function).
+let guess = 1
+loop {
+    if (guess * guess > 50) { break }
+    guess = guess + 1
+}
+// guess is now 8
+
+// break leaves the loop at once and the program continues after it.
+// A loop with no break and no return never ends.
+
+// A loop that reads input until the user types quit.
+// loop {
+//     const line = read_line()
+//     if (line.equals("quit")) { break }
+//     print(line)
+// }
+
+
+// ============================================================
+// 5. FOR: OVER A COLLECTION
+// ============================================================
+
+// for takes a collection in parentheses and a name between | | for each element. The block runs once per element.
+const scores = [70, 85, 90]
+
+let score_total = 0
+for (scores) |score| {
+    score_total = score_total + score       // 70, then 85, then 90
+}
+// score_total is 245
+
+// The name is a new constant for every pass. It exists only inside the block and cannot be assigned.
+// for (scores) |score| { score = 0 }     // ERROR: score is fixed inside the block
+// print(score)                           // ERROR: score is not declared here
+
+// A second name gives the position, a usize starting at 0.
+for (scores) |score, position| {
+    print(position)                       // 0, 1, 2
+}
+
+// What can be looped over, and what the names are:
+//   Array<T>     |item|  or  |item, index|       in order
+//   List<T>      |item|  or  |item, index|       in order
+//   Set<T>       |value|                          in no fixed order
+//   Map<K, V>    |key, value|                     in no fixed order
+//   String       |ch|    or  |ch, index|          one char at a time
+//   range(a, b)  |i|                              numbers (section 6)
+// A Tuple cannot be looped over, its slots have different types.
+// for ((1, 2.5)) |slot| { }         // ERROR: the slots have different types
+
+const grid = {10, 20, 30}
+for (grid) |cell, index| {
+    print(index)                          // 0, 1, 2
+}
+
+const members = Set(1, 2, 3)
+for (members) |member| {
+    print(member)                         // each value once, in no fixed order
+}
+
+const ages = Map("ann", 31, "bob", 27)
+for (ages) |name, age| {
+    print(name)                           // each key with its value
+}
+
+const word = "raga"
+for (word) |ch, at| {
+    print(ch)                             // 'r', 'a', 'g', 'a'
+}
+
+// The loop name has the type of the elements: an i32 for a List<i32>, a String for a List<String>.
+// A primitive element is copied into the name, a non-primitive element is shared, like a function argument.
+const names = ["ann", "bob"]
+for (names) |name| {
+    print(name.upper())
+}
+
+// An empty collection runs the block zero times.
+for (List<i32>()) |nothing| {
+    print(nothing)                        // never runs
+}
+
+
+// ============================================================
+// 6. RANGE
+// ============================================================
+
+// range(from, to) gives the numbers from `from` up to but not including `to`.
+for (range(0, 3)) |i| {
+    print(i)                              // 0, 1, 2
+}
+
+// A third argument is the step. A negative step counts down.
+for (range(0, 10, 3)) |i| {
+    print(i)                              // 0, 3, 6, 9
+}
+for (range(3, 0, -1)) |i| {
+    print(i)                              // 3, 2, 1
+}
+
+// The numbers have the type of the arguments: i32 for literals, another type when you write one.
+for (range(u8(0), u8(3))) |i| {
+    print(i)                              // 0, 1, 2 as u8
+}
+
+// To count over the positions of a List, range up to its length. len() is a usize, so the 0 becomes a usize.
+const letters = ["a", "b", "c"]
+for (range(0, letters.len())) |at| {
+    print(letters.get(at))
+}
+
+// range(0, 0) and a range that ends before it starts are empty, the block runs zero times.
+// for (range(5, 0)) |i| { }              // runs zero times, a step of -1 is needed to count down
+// range(0, 10, 0)                        // ERROR at run time: a step of 0 never ends
+
+
+// ============================================================
+// 7. BREAK AND CONTINUE
+// ============================================================
+
+// break leaves the innermost loop. continue skips the rest of the block and starts the next pass.
+// Both work in while, loop and for. Both take an optional number of further loops to leave, 0 when it is left out: break is
+// break 0 and leaves one loop, see section 9 for break 1 and more.
+let first_big = 0
+for (scores) |score| {
+    if (score > 80) {
+        first_big = score
+        break                             // stop at the first score above 80
+    }
+}
+// first_big is 85
+
+let evens_total = 0
+for (range(0, 10)) |i| {
+    if (i % 2 == 1) { continue }          // skip the odd numbers
+    evens_total = evens_total + i
+}
+// evens_total is 20
+
+// In a while, continue goes back to the condition, so change what the condition tests before continuing.
+let step = 0
+let stepped = 0
+while (step < 5) {
+    step = step + 1
+    if (step == 3) { continue }
+    stepped = stepped + 1                 // runs for 1, 2, 4, 5
+}
+
+// break and continue only exist inside a loop.
+// break                                  // ERROR: break outside a loop
+// if (true) { continue }                 // ERROR: continue outside a loop
+
+// Without a number they apply to the innermost loop. To leave or continue more loops, give a number: break 1, continue 2.
+// That needs no label, see section 9. A function with the loops can also return, see 04-functions section 13.
+
+
+// ============================================================
+// 8. ELSE AFTER A LOOP
+// ============================================================
+
+// A while or a for can be followed by else, written on the line of the closing brace like the else of an if. It is one more
+// link in the chain (01-basics, the layout rule for clauses), and nothing about it is new. The else block runs when the loop ended because it
+// ran out, and it is skipped when a break ended the loop. It answers "was it found?" without a flag.
+const candidates = [3, 5, 8]
+let first_even = 0
+for (candidates) |n| {
+    if (n % 2 == 0) {
+        first_even = n
+        break                                 // found: the else block is skipped
+    }
+} else {
+    first_even = -1                           // the list ran out and nothing was found
+}
+// first_even is 8
+
+let attempts_made = 0
+let gave_up = false
+while (attempts_made < 3) {
+    attempts_made = attempts_made + 1
+} else {
+    gave_up = true                            // the condition became false and no break ended the loop
+}
+// gave_up is true
+
+// Rules:
+//   - else runs when the loop ends without a break. A loop over an empty collection ends at once, so its else runs.
+//   - A break that leaves the loop skips the else, also break 1 and more that leave it on the way out. continue 1 and
+//     more, which leave the loop to continue an outer one, skip it too.
+//   - A loop with no condition only ends with a break, so an else after it would never run. That is an error.
+//   - The else block is outside the loop: a break in it belongs to the loop around the whole statement.
+//   - else must start on the line of the closing brace, like every link of a chain.
+// loop { break } else { }                  // ERROR: a loop with no condition only ends with break, so its else would never run
+
+
+// ============================================================
+// 9. NESTED LOOPS
+// ============================================================
+
+// A loop can contain another loop. The inner one starts again on every pass of the outer one.
+let cells = 0
+for (range(1, 4)) |row| {
+    for (range(1, 4)) |col| {
+        cells = cells + row * col         // 1*1, 1*2, 1*3, 2*1, ...
+    }
+}
+// cells is 36
+
+// break and continue inside the inner loop only affect the inner loop.
+let pairs = 0
+for (range(0, 3)) |outer| {
+    for (range(0, 3)) |inner| {
+        if (inner > outer) { break }      // leaves the inner loop, the outer one carries on
+        pairs = pairs + 1
+    }
+}
+// pairs is 6
+
+// Names in nested loops must differ, or the inner name hides the outer one.
+
+// LEAVING MORE THAN ONE LOOP. break and continue take a number: the number of loops to leave besides the innermost one. It is
+// written after the word, as one whole number, and it is 0 when it is left out. break is break 0 and leaves the innermost loop,
+// break 1 leaves it and the loop around it, break 2 leaves three loops, and so on.
+let found_x = 0
+let found_y = 0
+for (range(1, 10)) |x| {
+    for (range(1, 10)) |y| {
+        if (x * y == 42) {
+            found_x = x
+            found_y = y
+            break 1                       // leaves the inner loop and the outer loop
+        }
+    }
+}
+// found_x is 6 and found_y is 7, and the loops stopped at the first pair
+
+// continue works the same way: continue 1 stops the inner loop and starts the next pass of the loop around it.
+let sums = 0
+for (range(1, 4)) |row| {
+    for (range(1, 4)) |col| {
+        if (col > row) { continue 1 }     // the rest of this row is skipped, the next row starts
+        sums = sums + 1
+    }
+}
+// sums is 6
+
+// The number is a whole number written in the code, not a variable, and it cannot be larger than the number of loops around
+// the statement, minus one. A break or continue in a case of match or switch counts the loop around that statement.
+// break 2                                // ERROR: break 2 leaves 3 loops, but only 2 loops surround it (inside the loops above)
+// break found_x                          // ERROR: the number of loops to leave is a whole number written in the code
+// break -1                               // ERROR: the number of loops to leave cannot be negative
+// When the loops are inside a function, return leaves all of them at once, see 04-functions section 13 (has_pair).
+
+
+
+// ============================================================
+// 10. CHANGING A COLLECTION WHILE LOOPING
+// ============================================================
+
+// A for loop walks the collection it started with. Replacing an element with set is fine,
+// the length does not change.
+const prices = [1, 2, 3]
+for (range(0, prices.len())) |at| {
+    prices.set(at, prices.get(at) * 10)   // 10, 20, 30
+}
+
+// Adding or removing elements of the collection being looped over (push, pop, shift, unshift, add, remove)
+// is an error at run time, the loop would lose its place.
+// for (scores) |score| { scores.push(1) }    // ERROR at run time: the List changed size during the loop
+
+// To grow or shrink while looping, loop over a clone.
+const copy = scores.clone()
+for (copy) |score| {
+    scores.push(score)                    // fine: the loop is over copy, the changes go to scores
+}
+
+// The name of a for loop is a copy of a primitive element, so changing it changes nothing in the collection.
+// To change a primitive element, replace it by position with set, as above.
+
+
+// ============================================================
+// 11. COMMON PATTERNS
+// ============================================================
+
+// Count the elements that match.
+let big_scores = 0
+for (scores) |score| {
+    if (score > 80) { big_scores = big_scores + 1 }
+}
+
+// Build a new collection from an old one.
+const halved = List<i32>()
+for (scores) |score| {
+    halved.push(score / 2)
+}
+
+// Find the largest element.
+let largest = scores.get(0)
+for (scores) |score| {
+    if (score > largest) { largest = score }
+}
+
+// Run a fixed number of times.
+for (range(0, 3)) |attempt| {
+    print(attempt)
+}
+
+// Repeat until something happens.
+let remaining = 10
+while (remaining > 1) {
+    remaining = remaining / 2             // 5, 2, 1
+}
+
+// Keep asking until the answer is good enough.
+let attempts = 0
+loop {
+    attempts = attempts + 1
+    if (attempts >= 3) { break }
+}
+
+// Looping over the results of a function, one at a time (an iterator), is not a loop feature. It is a pattern of structs with
+// a next method, see 05-structs-enums-unions section 12. A for loop takes a collection.
