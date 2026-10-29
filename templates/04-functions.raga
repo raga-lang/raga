@@ -1,6 +1,7 @@
 // Functions: declaring, parameters, defaults, variadic arguments, return, void, return type inference
 // Calling with positional and named arguments, passing primitive and non-primitive values
-// if / elif / else, recursion, generic functions, callbacks and the trailing block, calls inside calls
+// if / elif / else, recursion, generic functions, callbacks and the trailing block, calls inside calls, the last argument
+// written as a block (a function, an Array or a struct)
 //
 // A function is a value bound to a name, declared like any variable:
 //   const name = function(Type param, ...) [ReturnType] { body }
@@ -8,7 +9,8 @@
 // is declared inside another function is a closure: it may use the names around it (section 15).
 // A function is a value: it can be passed, returned (section 14) and kept in a variable, a field or a collection.
 // There is no overloading of plain functions (methods can be overloaded, 07-classes-and-traits).
-// A function can take callbacks, as ordinary parameters, and the caller can write one of them as a block, see section 10.
+// A function can take callbacks, as ordinary parameters, and the caller can write the last argument as a block after the
+// parentheses: a callback (section 10), an Array or a struct (section 16).
 // Methods are functions inside a struct and are covered in 05-structs-enums-unions.
 // if, switch and loops come from 03-control-flow, which comes before this template.
 
@@ -112,7 +114,7 @@ const doubled = function(i32 n) i32 {
 
 // A parameter can have a default, written like a variable declaration: Type name = value.
 // Parameters with a default come after the ones without. The one exception is the callback that receives a
-// trailing block (section 10): it is always the last parameter, so it comes after the defaults.
+// trailing block (sections 10 and 16): it is always the last parameter, so it comes after the defaults.
 const scale = function(i32 value, i32 factor = 2) i32 {
     return value * factor
 }
@@ -163,7 +165,7 @@ const f2 = first_or(7, 10, 20)             // 10
 // Rules:
 //   - Only the last parameter can be variadic.
 //   - A function cannot have both default values and a variadic parameter.
-//   - A function cannot have both a variadic parameter and a callback for a trailing block: both would have to be last.
+//   - A function cannot have both a variadic parameter and a last parameter that takes a trailing block: both would have to be last.
 //   - The extra arguments are positional, a variadic parameter cannot be given by name.
 // const bad = function(i32 ...a, i32 b) { }          // ERROR: the variadic parameter must be last
 // const bad = function(i32 n = 1, i32 ...rest) { }   // ERROR: defaults and variadic cannot be mixed
@@ -322,8 +324,9 @@ const r1 = apply(4, double)               // 8
 const r2 = apply(value = 4, transform = double)
 
 // ...or a block written after the closing parenthesis. The block is anonymous: it simply
-// follows the call, the way the block of an if follows its condition, and it fills the LAST parameter, which must
-// be a callback. Its own parameters go between | |, their types come from the declared function type.
+// follows the call, the way the block of an if follows its condition, and it fills the LAST parameter. Here that
+// parameter is a callback; an Array or a struct can be the last parameter too, see section 16. Its own parameters go
+// between | |, their types come from the declared function type.
 // The block is a function body: return gives the value back to apply.
 const r3 = apply(4) |n| {
     return n * 3                          // 12
@@ -402,7 +405,7 @@ attempts(3, pause = 50) |number| {        // the block still comes after the par
 // Rules for callbacks:
 //   - A function takes at most one trailing block, and it fills the last parameter. Any other callback
 //     is an ordinary argument inside the parentheses (section 11).
-//   - Nothing may come after the callback for the trailing block: no parameter without a default, no parameter with
+//   - Nothing may come after the parameter for the trailing block: no parameter without a default, no parameter with
 //     a default, and no variadic parameter. It is the very last parameter of the function.
 //   - A callback parameter is an ordinary function value. It can be called, handed to another function, stored in a
 //     variable, a field or a collection, and returned (section 14). A block is a function declared in place, so it is a
@@ -526,10 +529,12 @@ const d6 = double base + 1                // 15, the argument is one operand onl
 //   - a String, or an Array, List or Tuple literal: print("hi"), show({1, 2}), show([1, 2])
 //   - an operator expression: double(base + 1), and double -base is the subtraction double - base
 //   - two or more arguments: add(1, 2)
-//   - an argument together with a trailing block: apply(4) |n| { ... }
+//   - an argument together with a trailing block: apply(4) |n| { ... }, table("users") { ... }
 // const bad = print "hi"                  // ERROR: a String is not a primitive value, write print("hi")
 // const bad = add 1, 2                    // ERROR: write add(1, 2)
 // const bad = double base { }             // ERROR: a call with a block and an argument keeps its parentheses
+// A function with ONE parameter that takes a block needs no parentheses at all: show { ... } fills that parameter
+// (section 16). A block always fills the last parameter, so the arguments outside it are one fewer than the parameters.
 // A call with no argument and no block always keeps its parentheses: answer().
 
 
@@ -764,3 +769,82 @@ save_button.on_click()                    // clicks is 1
 
 // A method is passed or returned by wrapping it in a function, see 07-classes-and-traits section 13.
 // Several clauses after one call (chaining) are a pattern of structs, see 05-structs-enums-unions section 11.
+
+
+// ============================================================
+// 16. THE LAST ARGUMENT AS A BLOCK: FUNCTION, ARRAY, STRUCT
+// ============================================================
+
+// The block after a call is not special to callbacks. It is the LAST argument, written in place after the
+// parentheses instead of inside them. Three kinds of value can be written this way, and all three start with {:
+//   a function    the body of the function, with | | for its parameters (section 10)
+//   an Array      the values of the array, separated by commas, the same as the array literal { 1, 2, 3 }
+//   a struct      one line per field, name = value
+// The type of the last parameter says which one the block is. Nothing else changes: the block is the argument, and
+// the same value could be written inside the parentheses (an Array as { 1, 2, 3 }, a struct as Column(...), a function as
+// function(...) { ... }).
+
+// An Array as the last argument.
+const tally = function(String title, Array<i32> numbers) i32 {
+    let total = 0
+    for (numbers) |n| { total = total + n }
+    return total
+}
+const tally1 = tally("scores") { 4, 8, 15 }              // 27, the same as tally("scores", { 4, 8, 15 })
+const tally2 = tally("scores") {                          // a long array goes over several lines, the commas stay
+    4,
+    8,
+    15
+}
+
+// A struct as the last argument: every field, by name, one per line, in any order.
+const Column = struct {
+    String name
+    i32 size
+}
+const table = function(String name, Column column) String {
+    return name
+}
+const users = table("users") {
+    name = "id"
+    size = 4
+}
+// The same call with the struct inside the parentheses: table("users", Column(name = "id", size = 4))
+
+// A function with one parameter needs no parentheses when it is given the block (section 12):
+const width = function(Column column) i32 {
+    return column.size
+}
+const w = width {
+    name = "id"
+    size = 4
+}
+
+// The value comes from the block, so it is made when the call is made, in the caller's scope. A function body is
+// different: it is kept, and the callee runs it later, when it calls the parameter.
+const unit = 4
+const tally3 = tally("scores") { unit, unit * 2 }         // 12, any expression can be an element
+
+// Rules:
+//   - The block fills the LAST declared parameter. That parameter must not be given inside the parentheses, by name or
+//     by position, and it cannot be variadic. If the parentheses already fill every parameter, the block is one argument
+//     too many and that is an error, for a function block as well.
+//   - The declaration of the function decides what the block is. A function with no parameters and a struct with no
+//     fields would both be written { }, so the type of the last parameter is the only thing that tells them apart.
+//   - A clause of a chain (05-structs-enums-unions section 11) is a call of a method, so its block follows the same rules:
+//     when the last parameter of the method is an Array or a struct, the clause block is the values or the lines.
+//   - A function, an Array and a struct are the only types that can be written as a block. Any other last parameter
+//     (a number, a String, a List, a Tuple, a Map, a class, a union) is passed inside the parentheses.
+//   - The block is written in place: it is a function body, array values or struct lines. A variable cannot be put
+//     there, so a value that was made somewhere else is passed inside the parentheses: table("users", my_column).
+//   - | | names belong to function blocks only. An Array or struct block gives nothing and has no | |.
+//   - return, break and continue are not used in an Array or struct block, it is values, not statements.
+//   - A struct block names every field of the struct, once each, like Column(name = ..., size = ...). A field that is
+//     missing, unknown or given twice is an error.
+//   - Creating a value, Column(name = "id", size = 4), takes its values inside the parentheses. A block cannot follow it.
+// const bad = tally("scores") my_numbers               // ERROR: write tally("scores", my_numbers)
+// const bad = table("users") { name = "id" }           // ERROR: Column needs size
+// const bad = tally("scores") |n| { 1, 2 }             // ERROR: an Array block gives no values, it cannot name any
+// const bad = tally("scores", my_numbers) { 1 }        // ERROR: numbers is already given, the block is one argument too many
+// const bad = scale(2) { 5 }                           // ERROR: the last parameter is an i32, pass it inside the parentheses
+// const bad = Column(name = "id", size = 4) { }        // ERROR: creating a Column takes no block

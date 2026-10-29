@@ -179,6 +179,26 @@ const apply = function(i32 value, function(i32) i32 transform) i32 {
 }
 const r1 = apply(4) |n| { return n * 3 }  // 12
 
+// The block is the LAST argument written in place, and the type of the last parameter says what it is: a function body
+// for a callback, the values of an Array, or one name = value line per field for a struct (04-functions section 16).
+const Column = struct {
+    String name
+    i32 size
+}
+const table = function(String name, Column column) String {
+    return name
+}
+const users = table("users") {
+    name = "id"
+    size = 4
+}
+const tally = function(String title, Array<i32> numbers) i32 {
+    let total = 0
+    for (numbers) |n| { total = total + n }
+    return total
+}
+const scores = tally("scores") { 4, 8, 15 }   // 27
+
 // A function takes at most one trailing block, and it fills the last parameter. Any other callback is an
 // ordinary argument inside the parentheses. Several clauses in one chain are a pattern of structs, see 05-structs-enums-unions section 11.
 const report = function(String reason) {

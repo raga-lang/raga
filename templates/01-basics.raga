@@ -564,7 +564,7 @@ print(sh)                         // 1
 //   functions   print len range read_line sleep typeof sizeof alignof alloc free compile reflect
 //               attributes_of get_field set_field import export $
 //   types       String Array List Tuple Set Map Optional Result Error Weak Any TypeInfo FieldInfo VariantInfo
-//               AttributeInfo BindingInfo Kind Op Module Visibility Inheritance Ownership Code Math System File Time Random IError
+//               AttributeInfo BindingInfo Kind Op Module Visibility Inheritance Ownership Math System File Time Random IError
 // const print = 1                // ERROR: print is built in, choose another name
 // const List = struct { }        // ERROR: List is a built-in type
 // A name inside a function (a parameter, a local, a loop name) may reuse one of them, it only hides it there.
@@ -612,6 +612,8 @@ let a1 = 1; let a2 = 2; a1 = a1 + a2
 // same shape, with a name between pipes when they hand a value to the block.
 // A call to your own function may drop its parentheses when it has one simple operand (double 5, double base) or only a
 // trailing block (timed { }), see 04-functions section 12. A String, a collection literal or an operator needs parentheses.
+// The last argument of a call can be written as a block after the parentheses when it is a function, an Array or a struct
+// (04-functions section 16).
 // Every type head (struct, union, enum, class, interface, trait) holds its members in braces. Parentheses are for
 // what a head takes: the parameters of a function or an attribute.
 // A block's opening `{` is on the line of its head. An attribute line applies to the declaration below it.
