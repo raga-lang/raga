@@ -600,6 +600,10 @@ let a1 = 1; let a2 = 2; a1 = a1 + a2
 // Layout: a statement ends at a newline, unless the line leaves a bracket open or ends with a comma or an operator.
 // A clause continues the statement before it and starts on the same line as the closing `}` or `)`:
 //   if elif else, else after while and for (03-control-flow section 8), try catch finally, extends implements use, get set, chain clauses.
+// A chain is not magic. Calls that return values are chained with a dot: user().select().limit(1). When the last argument of
+// a call is written as a block (a callback, an Array or a struct, 04-functions section 16), a dot after the closing brace would
+// look strange, so the dot is left out and the next name follows the brace on the same line: user { } select { } limit (1).
+// Each step is still a call of a member of the value the step before it gave back, with its block as the last argument.
 // match and switch are written like if: the head, then `{`, then one case per line, then `}`.
 // Two cases on one line are an error.
 // A line that starts with an operator is a new statement, it does not continue the line above:

@@ -124,7 +124,7 @@ if (command.equals("go") || command.equals("run")) { moving = true } elif (comma
 // }
 // switch (code) { case ("x") { } }   // ERROR: the subject is an i32, the case is a String
 // switch (command) { case ("go") { } }   // ERROR: a String cannot be switched on, use equals in an if
-// switch (code) { case (code) { } }          // ERROR: a case value must be a literal, code is a variable
+// switch (code) { case (tip) { } }           // ERROR: a case value must be a literal, tip is a variable
 // switch (shape) { case (Circle) { } }      // ERROR: shape is an enum or a tagged union (05-structs-enums-unions), write match
 
 // break and continue in a case belong to the loop around the switch, like in a match.

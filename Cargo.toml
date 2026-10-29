@@ -1,0 +1,15 @@
+[package]
+name = "ragac"
+version = "0.1.0"
+edition = "2024"
+description = "The Raga compiler"
+license = "MIT"
+publish = false
+
+# No dependencies yet. A dependency is added when a stage really needs one (LLVM bindings for code generation, for example).
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

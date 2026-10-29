@@ -36,7 +36,7 @@ const dhas   = days.contains(2)   // true
 // const mixed = {1, 2.5}    // ERROR: every element must have the same type, use (1, 2.5)
 days.set(0, 9)                    // OK: replace the element at index 0, now 9, 2, 3
 // days.set(0, 2.5)               // ERROR: the element must stay i32
-// days.set(3, 9)                 // ERROR: index 3 does not exist, an Array cannot grow
+// days.set(3, 9)                 // throws an Error: there is no element at index 3, an Array cannot grow
 // days.push(4)                   // ERROR: an Array has a fixed size
 const same_days = days == {1, 2, 3}  // false: two separate Arrays, even though the contents are equal
 

@@ -157,18 +157,18 @@ const h3 = greeter.hello("bob", 3)            // the version with a String and a
 //
 // Without a Visibility a member is public. A value from another enum, or a bare word, is a compile error, and so are
 // modifiers that contradict each other:
-// [method(Inheritance.Abstract, Inheritance.Final)]       // ERROR: an abstract method must be overridden, a final one cannot be
-// [method(Ownership.Static, Inheritance.Override)]      // ERROR: a static method belongs to the class, there is nothing to override
-// [method(Inheritance.Final)]                 // ERROR on a method that is not virtual: there is nothing to forbid replacing
-// [method(Inheritance.Virtual, Inheritance.Final)]        // fine: virtual in this class, and no class that extends may replace it
-// [method(Inheritance.Virtual, Ownership.Static)]       // ERROR: a static method belongs to the class, it is not replaced
-// [class(Inheritance.Virtual)]                // ERROR: [class(...)] takes Final and Abstract, virtual is for a method
-// [method(static)]                            // ERROR: write Ownership.Static, a modifier is always written with its enum
-// [method(Kind.Function)]                     // ERROR: Kind is not a modifier enum
-// [field(Inheritance.Final)]                  // ERROR: [field(...)] takes Visibility and Ownership only
-// [get(Ownership.Static)]                   // ERROR: get and set take a Visibility only, Ownership.Static belongs to [accessor(...)]
-// [method(Visibility.Public, Visibility.Private)]       // ERROR: two visibilities
-// [class(Inheritance.Abstract, Inheritance.Final)]        // ERROR: an abstract class must be extended, a final one cannot be
+// const bad = class { [method(Inheritance.Abstract, Inheritance.Final)] const m = method() }       // ERROR: an abstract method must be overridden, a final one cannot be
+// const bad = class { [method(Ownership.Static, Inheritance.Override)] const m = method() { } }      // ERROR: a static method belongs to the class, there is nothing to override
+// const bad = class { [method(Inheritance.Final)] const m = method() { } }                 // ERROR: a method that is not virtual has nothing to forbid replacing
+// const fine = class { [method(Inheritance.Virtual, Inheritance.Final)] const m = method() { } }        // fine: virtual in this class, and no class that extends may replace it
+// const bad = class { [method(Inheritance.Virtual, Ownership.Static)] const m = method() { } }       // ERROR: a static method belongs to the class, it is not replaced
+// [class(Inheritance.Virtual)] const bad = class { }                // ERROR: [class(...)] takes Final and Abstract, virtual is for a method
+// const bad = class { [method(static)] const m = method() { } }                            // ERROR: write Ownership.Static, a modifier is always written with its enum
+// const bad = class { [method(Kind.Function)] const m = method() { } }                     // ERROR: Kind is not a modifier enum
+// const bad = class { [field(Inheritance.Final)] String f = "" }                  // ERROR: [field(...)] takes Visibility and Ownership only
+// const bad = class { [get(Ownership.Static)] const v = get { return 1 } }                   // ERROR: get and set take a Visibility only, Ownership.Static belongs to [accessor(...)]
+// const bad = class { [method(Visibility.Public, Visibility.Private)] const m = method() { } }       // ERROR: two visibilities
+// [class(Inheritance.Abstract, Inheritance.Final)] const bad = class { }        // ERROR: an abstract class must be extended, a final one cannot be
 // A constructor and a destructor are not marked by a modifier, they have special names, see sections 3 and 4.
 
 // Every kind of modifier in one place. Shape is abstract and cannot be created, Circle is final and cannot be extended:
@@ -361,7 +361,7 @@ const hot = Temperature(celsius = 40.0)           // creating with a value runs 
 // reading.fahrenheit = 100.0                     // ERROR: fahrenheit has no set, it is read-only
 // reading.celsius = "hot"                        // ERROR: celsius is an f64
 // reading.celsius()                              // ERROR: an accessor is not called
-// [get(Ownership.Static)]                                  // ERROR: get takes public, protected or private only
+// const bad = class { [get(Ownership.Static)] const v = get { return 1 } }          // ERROR: get takes public, protected or private only
 
 // An interface or a trait lists an accessor like any field, with only its type and name and no parts. A class
 // satisfies it with a plain field or with an accessor, whichever it needs:
@@ -457,8 +457,8 @@ const first = Student.firstRoll()
 // const bad = class { } extends(Student)                // ERROR: Student is final
 // const bad = Student(name = "x").age             // ERROR: age is protected, it can only be used in People and its subclasses
 // const greet = method() String { ... }   // in Student, without [method(Inheritance.Override)]: fine, it replaces the virtual greet of People
-// [method(Inheritance.Override)] const role2 = method() String { ... }                 // ERROR: People has no virtual role2 to replace
-// [method(Inheritance.Override)] const describe = method() String { ... }              // ERROR: describe of People is not virtual
+// const bad = class { [method(Inheritance.Override)] const role2 = method() String { return "" } } extends(People)      // ERROR: People has no virtual role2 to replace
+// const bad = class { [method(Inheritance.Override)] const describe = method() String { return "" } } extends(People)    // ERROR: describe of People is not virtual
 
 
 // ============================================================
@@ -735,9 +735,8 @@ Counter.reset()
 //   - Static members of a class are inherited by name, but there is still one copy.
 //   - A constructor and a destructor cannot be static.
 // first_counter.created                          // ERROR: created is static, write Counter.created
-// [method(Ownership.Static)]
-// const bad = method() String { return this.label }       // ERROR: a static method has no this, so no label
-// const wrong = get { return Counter._created }           // ERROR: reads a static field, so it must be [accessor(Ownership.Static)]
+// const bad = class { String label = ""; [method(Ownership.Static)] const m = method() String { return this.label } }       // ERROR: a static method has no this, so no label
+// const wrong = class { [field(Ownership.Static)] i32 _c = 0; const w = get { return wrong._c } }           // ERROR: reads a static field, so it must be [accessor(Ownership.Static)]
 
 
 // ============================================================

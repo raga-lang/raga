@@ -16,4 +16,4 @@ const square = function(f64 side) f64 {      // private: not in the export call
     return side * side
 }
 
-export(pi, Point, circle_area)
+export { pi, Point, circle_area }

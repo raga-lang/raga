@@ -1,5 +1,5 @@
 // Raga quick start. Read it top to bottom, the templates/ folder explains each part in full.
-// Raga is a language design: this file shows the intended meaning of each line, there is no compiler that runs it.
+// Each line shows what it means. The compiler, ragac, checks a file: cargo run -- check hello.raga.
 // A line comment runs from // to the end of the line. There are no block comments.
 
 
@@ -168,8 +168,8 @@ const sum = function(Array<i32> numbers) i32 {
     return result
 }
 const nested = double(sum({1, 3, 4, 3}))     // 22
-const nested2 = double sum({1, 3, 4, 3})     // 22, one simple operand needs no parentheses
-const five = double 5                      // 10
+const nested2 = double sum {1, 3, 4, 3}      // 22, the argument is a name with a block, which is a call: double(sum({1, 3, 4, 3}))
+const five = double(5)                     // 10, a written-out value keeps its parentheses
 
 // A callback is an ordinary parameter with a function type, written like a function head: function(i32) i32.
 // The caller can pass a function by name, or write a block after the parentheses.
@@ -226,9 +226,7 @@ match (s2) {
 
 // if is a statement too, like match. It does not give a value either.
 let size = ""
-if (n > 10) { size = "big" }
-elif (n > 5) { size = "medium" }
-else { size = "small" }
+if (n > 10) { size = "big" } elif (n > 5) { size = "medium" } else { size = "small" }
 
 // switch is match for integers and chars. A case lists one or more values and does not fall through.
 let status = ""
@@ -388,7 +386,7 @@ const sam = Student(name = "sam", rollNumber = 7)
 // There is no main function: the top-level code of the file you run goes from the first line to the last.
 //   ---- ./geometry/shapes.raga ----        ---- the file that uses it ----
 //   const pi = 3.14159                      const shapes = import("./geometry/shapes")
-//   export(pi)                           const radius_pi = shapes.pi
+//   export { pi }                           const radius_pi = shapes.pi
 
 
 // ============================================================

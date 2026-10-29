@@ -51,7 +51,7 @@ Point p2     = Point(x = 3.0, y = 4.0)    // explicit type, same value
 // Fields are read and written with a dot. const protects the name, not the Point it refers to.
 const px = p1.x                           // 1.5 (f64)
 p2.x = 9.0                                // OK: the Point that p2 refers to changes
-// p2 = p1                                // ERROR if p2 were const: a const name cannot be rebound
+// p1 = p2                                // ERROR: p1 is const, a const name cannot be rebound
 // const bad = Point(x = 1, y = 2)       // ERROR: 1 is a whole number, write 1.0
 // const bad = Point(x = 1.0, y = height) // ERROR: height is not declared (x and y are field names, not variables)
 // const bad = Piont(x = 1.0)             // ERROR: the type Piont is not declared
@@ -225,7 +225,7 @@ const CValue = union {
 }
 
 // An untagged union cannot be used with match, because it has no tag to look at.
-// const bad = match (num) { ... }        // ERROR: match needs a tagged union or an enum
+// match (num) { default { } }           // ERROR: match needs a tagged union or an enum
 
 
 // ============================================================
@@ -481,7 +481,7 @@ const Link = struct {
 const last_link = Link(value = 2, next = Optional.None)
 const first_link = Link(value = 1, next = Optional.Some(last_link))
 // const Loop = struct { i32 value; Loop next }          // ERROR: a Loop could never be created, use Optional<Loop>
-// const Left = struct { Right other }  const Right = struct { Left other }   // ERROR: Right is not declared above Left
+// const First = struct { Second other }; const Second = struct { First other }   // ERROR: Second is not declared above First
 // The methods of a type may name the type in their parameters and results too: const scaled = function(f64 k) Vec.
 
 // Enums have no data, so they take no parameter. Tagged unions do.
@@ -715,7 +715,9 @@ const board = Board(name = "release", tasks = List<Task>())
 // ============================================================
 
 // Chaining is not a separate feature. It is a pattern made of structs and methods: one call continues into the
-// next on the same line, and the type each step returns decides what may follow.
+// next, and the type each step returns decides what may follow. Calls that return values are chained with a dot,
+// user().select().limit(1). When the last argument of a call is a block, a dot after the closing brace would look
+// strange, so the dot is left out and the next name follows the brace on the same line, as below.
 //   when (a) { A } or_when (b) { B } or_when (c) { C } otherwise { D }
 //
 //   - The first clause is a plain function. Every later clause is a method of the struct that the clause before it gave back.

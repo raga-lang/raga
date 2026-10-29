@@ -1,5 +1,5 @@
 // Modules: one file uses the names of another file
-// import gives a file as a value, export is the call that lists the names that the file shares
+// import gives a file as a value, export lists the names that the file shares
 //
 // A program can be one file or many. A file is a module: every name declared at its top level belongs to that file
 // and is private to it, unless the file exports it. This template uses functions (04-functions), structs
@@ -11,8 +11,9 @@
 // 1. EXPORT: THE NAMES A FILE SHARES
 // ============================================================
 
-// A file lists the names that others may use in one export call, at the end of the file. export is a function whose
-// arguments are names, like import is a function whose argument is a path.
+// A file lists the names that others may use in one export call, at the end of the file. export takes an Array block of
+// names, written without parentheses like every call whose last argument is a block (04-functions), and import is a
+// function whose argument is a path.
 // Functions, constants and types can be exported. A name that is not listed stays private to the file.
 //
 //   ---- the file ./geometry/shapes.raga ----
@@ -27,16 +28,16 @@
 //   const square = function(f64 side) f64 {      // private: not in the export call
 //       return side * side
 //   }
-//   export(pi, Point, circle_area)
+//   export { pi, Point, circle_area }
 //   ----------------------------------------
 //
 // Rules:
 //   - There is at most one export call in a file, and it is the last statement of the file.
-//   - The arguments are bare names, not values: export(pi) shares the name pi, it does not pass 3.14159 on.
+//   - The block holds bare names, not values: export { pi } shares the name pi, it does not pass 3.14159 on.
 //   - Each name in it is declared above it, at the top level of the file. Exporting a name that does not exist is an error.
 //   - A name is listed once.
-// export(missing)                          // ERROR: missing is not declared in this file
-// export { pi }                            // ERROR: write export(pi), a block holds statements and not names
+// export { missing }                          // ERROR: missing is not declared in this file
+// export(pi)                               // ERROR: write export { pi }, export takes a block of names
 
 
 // ============================================================
@@ -117,7 +118,7 @@ const corner_area = area_of(corner.x)          // 3.14159
 //   const square = function(f64 side) f64 {      // and a name of its own
 //       return side * side
 //   }
-//   export(area_of_circle, Pt, pi, square)       // the file shares what it took and what it declared
+//   export { area_of_circle, Pt, pi, square }       // the file shares what it took and what it declared
 //   ----------------------------------------
 // A file that imports api sees area_of_circle, Pt, pi and square. It does not see shapes: a name that is not in the
 // export call is private, also when it is a module.
@@ -136,16 +137,15 @@ const corner_area = area_of(corner.x)          // 3.14159
 // three places, in this order. The first one that has it wins.
 //   1. the project file raga.project, if there is one: a line  name = "path"  gives the name a file
 //   2. the libraries folder of the project: libraries/name.raga, or libraries/name/name.raga
-//   3. the standard location that comes with the language: libraries written in Raga that are installed with it. Today it holds
-//      one library, test (the library of section 6), and others are added over time. A library of the same name in the
-//      project is found first, so a project can replace one.
+//   3. the standard location that comes with the language: libraries written in Raga that are installed with it, such as test
+//      (the library of section 6). A library of the same name in the project is found first, so a project can replace one.
 // The project is the nearest folder above the importing file that has a raga.project file or a libraries folder.
 //
 //   ---- raga.project ----                               ---- libraries/greeting.raga ----
 //   // an optional file                                  const hello = function(String name) String {
 //   shapes_lib = "./geometry/shapes"                         return String.format("hello %s", name)
 //                                                        }
-//                                                        export(hello)
+//                                                        export { hello }
 const greeting = import("greeting")             // found in libraries/greeting.raga
 const hello_ann = greeting.hello("ann")         // "hello ann"
 const shapes_lib = import("shapes_lib")         // found through raga.project: ./geometry/shapes
@@ -178,7 +178,7 @@ const lib_area = shapes_lib.circle_area(1.0)
 //       try { body()  ... counts it as passed } catch |e| { ... counts it as failed and prints e.message }
 //   }
 //   const check = function(bool condition) { if (!condition) { throw(Error(message = "check failed", code = 1)) } }
-//   export(describe, it, check, summary)
+//   export { describe, it, check, summary }
 const t = import("test")
 
 t.describe("circle_area") {

@@ -4,4 +4,4 @@ print("startup is running")
 
 const ready = true
 
-export(ready)
+export { ready }

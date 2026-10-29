@@ -72,9 +72,9 @@ const cube = function(f64 x) {            // inferred: f64, because x * x * x is
 const half = function(f64 x) {
     return 0.5                            // f64
 }
-// const bad = function(bool flag) {
-//     if (flag) { return 1 }             // i32
-//     return 2.5                         // ERROR: f64 here, the returns disagree
+// const bad = function(bool flag) {      // ERROR: the returns disagree, 1 is an i32 and 2.5 is an f64
+//     if (flag) { return 1 }
+//     return 2.5
 // }
 
 // A written return type must match what is returned.
@@ -94,9 +94,9 @@ const warn = function(i32 level) {
 }
 
 // A function with a return type must return on every path.
-// const bad = function(i32 n) i32 {
+// const bad = function(i32 n) i32 {      // ERROR: when n is not above 0 nothing is returned
 //     if (n > 0) { return 1 }
-// }                                      // ERROR: when n is not above 0 nothing is returned
+// }
 
 
 // ============================================================
@@ -243,8 +243,7 @@ const factorial = function(u64 n) u64 {
     return n * factorial(n - 1)
 }
 const f5 = factorial(5)                   // 120
-// const bad = function(u64 n) { if (n <= 1) { return 1 } return n * bad(n - 1) }
-//                                        // ERROR: write the return type, it depends on the call to itself
+// const bad = function(u64 n) { if (n <= 1) { return 1 } return n * bad(n - 1) }   // ERROR: write the return type, it depends on the call to itself
 
 // Two functions cannot call each other (mutual recursion). A name is visible only below its declaration, and there are
 // no forward declarations, so the first of the two cannot name the second:
@@ -297,7 +296,7 @@ const longer_text = larger("ab", "abc") |x, y| {
 }
 // const bad = function<T>(T a, T b) T { return a + b }       // ERROR: T is a type parameter and may not have +
 // const bad = function<T>(T value) i32 { return value.size() }   // ERROR: T has no member size
-// Constraints, a way for a type parameter to say what it must be able to do, are not designed yet.
+// A type parameter has no constraints: inside the function it can only be passed around, stored, returned and compared with ==.
 
 
 // ============================================================
@@ -350,7 +349,8 @@ timed() {
 }
 
 // A call with no arguments is written with parentheses, timed(), or with just its block, as here.
-// Nothing after the name is not a call: timed alone is the function itself.
+// A name with nothing after it is the function itself when the function takes parameters, as timed does: it needs its
+// callback, so timed alone is not a call. A function that takes no parameters is called by its name alone (section 12).
 timed {
     print("again")                        // the same call as timed() { print("again") }
 }
@@ -485,7 +485,8 @@ const chosen = pick(running > 3, when_false = one) {
 // Rules:
 //   - At most one block follows the call, and it fills the last parameter.
 //   - Every other callback is an ordinary argument: a named function, passed by position or by name.
-//   - Several clauses after one call are a pattern of structs and methods, see 05-structs-enums-unions section 11.
+//   - Several clauses after one call are a pattern of structs and methods, see 05-structs-enums-unions section 11. They are
+//     the usual chain of calls, written without the dots because each call before the last ends with a block.
 // attempt(5) |result| { } failed |reason| { }      // ERROR: a call takes one block, pass failed inside the parentheses
 
 
@@ -505,37 +506,45 @@ const nested = double(sum({1, 3, 4, 3}))     // 22: the Array is built, sum adds
 // The inner call runs first, and its type must fit the parameter of the outer one:
 // const bad = double(sum({1, 3}) + 0.5)     // ERROR: that is an f64, double takes an i32
 
-// A call can be written without parentheses when it has one argument that is a single, simple operand, or only a block.
+// A call can be written without parentheses when its one argument is a name, or when it has only a block.
 // The next token after the name decides what the call is:
 //   name(           a call with parentheses, as everywhere above
 //   name {          a call with no arguments and a trailing block
 //   name |x| {      a call with no arguments and a trailing block that names its parameter
-//   name operand    a call with exactly one argument and no parentheses
-//   anything else   no call: the bare name is the function itself, which can be passed as an argument (section 10)
-// An operand is one of these:
-//   - a number (a sign directly before it belongs to it), a char, true or false
-//   - a name, also with a dot and more names after it: user.name
-//   - a call with parentheses: sum({1, 3, 4, 3}), or another call without them
-const d1 = double 5                       // 10, the same as double(5)
-const d2 = double -5                      // -10, the sign belongs to the number
+//   name other      a call with exactly one argument, the name that follows, and no parentheses
+//   anything else   no call
+// The argument is a name, also with a dot and more names after it: user.name. A name that is followed by another name is
+// itself a call, so the calls nest to the right: a b c is a(b(c)). A name with a block is a call too, and it can be the
+// argument: double sum { 1, 2, 3 } is double(sum({ 1, 2, 3 })).
 const base = 7
 const d3 = double base                    // 14, a name
-const d4 = double sum({1, 3, 4, 3})       // 22, a call with parentheses is one operand: double(sum({1, 3, 4, 3}))
-const d5 = double double base             // 28, a call without parentheses is an operand too: double(double(base))
-const d6 = double base + 1                // 15, the argument is one operand only, so this is (double base) + 1
-// A member can be the operand: double user.age is double(user.age).
+const d5 = double double base             // 28, a call without parentheses is an argument too: double(double(base))
+const d6 = double base + 1                // 15, the argument is the name only, so this is (double base) + 1
+// A member can be the argument: double user.age is double(user.age).
 
-// What is not an operand needs parentheses, and so does everything with more than one argument:
+// A function with no parameters needs no parentheses at all: its name alone is the call, answer is answer().
+const the_answer = answer                 // 42
+const nested_call = double answer         // 84: answer is called first, and its result is the argument
+// A function with parameters is not called by its name alone: shout is the function itself (section 14). And wherever a
+// function is wanted, an argument or a variable of a function type, a name is the function, also when it takes no
+// parameters: it is passed, not called (section 10).
+
+// What is not a name needs parentheses, and so does everything with more than one argument:
+//   - a number, a char, true or false: double(5), double(-5)
 //   - a String, or an Array, List or Tuple literal: print("hi"), show({1, 2}), show([1, 2])
+//   - a call with parentheses: double(sum({1, 3, 4, 3}))
 //   - an operator expression: double(base + 1), and double -base is the subtraction double - base
 //   - two or more arguments: add(1, 2)
 //   - an argument together with a trailing block: apply(4) |n| { ... }, table("users") { ... }
-// const bad = print "hi"                  // ERROR: a String is not a primitive value, write print("hi")
+// const bad = double 5                    // ERROR: a number is a written-out value, write double(5)
+// const bad = print "hi"                  // ERROR: a String is not a name, write print("hi")
 // const bad = add 1, 2                    // ERROR: write add(1, 2)
-// const bad = double base { }             // ERROR: a call with a block and an argument keeps its parentheses
+// const bad = double base { }             // ERROR: base is a number, and a number takes no block: a name with a block is a call
 // A function with ONE parameter that takes a block needs no parentheses at all: show { ... } fills that parameter
 // (section 16). A block always fills the last parameter, so the arguments outside it are one fewer than the parameters.
-// A call with no argument and no block always keeps its parentheses: answer().
+const d1 = double(5)                      // 10
+const d2 = double(-5)                     // -10
+const d4 = double(sum({1, 3, 4, 3}))      // 22
 
 
 // ============================================================
@@ -661,8 +670,9 @@ const rest = operation("minus")(9, 4)  // 5
 //   - A function value is a primitive, written with a lowercase type name: assignment copies it, == asks whether it is
 //     the same function. A function that uses names around it carries them with it (section 15), so two values made by
 //     two calls of the same outer function are different functions.
-//   - A name with nothing after it is not a call, so shout is the function and shout("a", 1) is its result. A call with
-//     arguments is written with parentheses, also the second pair in style(true)("a", 1).
+//   - The name of a function that takes parameters, with nothing after it, is not a call, so shout is the function and
+//     shout("a", 1) is its result. A call with arguments is written with parentheses, also the second pair in
+//     style(true)("a", 1).
 // const wrong = function() function(i32) i32 { return plus }       // ERROR: plus takes two parameters, not one
 
 // A GENERIC FUNCTION AS A VALUE. A generic function (section 9) has no single type until its type argument is known, so it is
@@ -764,7 +774,7 @@ save_button.on_click()                    // clicks is 1
 //     08-memory section 8. Keep the way back as a Weak.
 //   - At build time (compile(), 09-attributes-and-reflection) a closure may use only values that are known at build time.
 // const early = function() { later() }                  // ERROR: later is declared below
-// const bad = function() { count = count + 1 }          // ERROR: count is not declared above
+// const bad = function() { ticks = ticks + 1 }          // ERROR: ticks is not declared above
 // const fixed = function(i32 n) function() { n = 5 }    // ERROR: a parameter cannot be assigned, write let local = n
 
 // A method is passed or returned by wrapping it in a function, see 07-classes-and-traits section 13.

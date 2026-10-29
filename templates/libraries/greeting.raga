@@ -5,4 +5,4 @@ const hello = function(String name) String {
     return String.format("hello %s", name)
 }
 
-export(hello)
+export { hello }

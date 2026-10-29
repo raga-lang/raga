@@ -17,7 +17,7 @@
 //   read_line() String                    reads one line of input, without the end of line              (03-control-flow)
 //   len(value) usize                      the number of elements or characters, the same as value.len()  (02-data-structures)
 //   range(from, to, step = 1)             the numbers from `from` up to but not including `to`, for loops (03-control-flow)
-//   sleep(milliseconds)                   pauses the program                                            (not shown yet)
+//   sleep(milliseconds)                   pauses the program                                            (04-functions)
 //   typeof(value)                         the type of a value, known when the program is built          (01-basics)
 //   sizeof<T>() usize                     the size of a type in bytes                                   (08-memory)
 //   alignof<T>() usize                    the alignment of a type in bytes                              (08-memory)

@@ -27,6 +27,16 @@
 // your own code can read (section 4).
 // Text in an attribute is a String literal like anywhere else: [page("/")].
 
+// An attribute is a name like any other: it is declared before it is used. These are declared here, with only their
+// parameters, and section 2 explains how they are declared and what else a declaration can hold.
+const page = attribute(String path)
+const cached = attribute(i32 seconds)
+const version = attribute(i32 number)
+const table = attribute(String name)
+const key = attribute()
+const between = attribute(i32 low, i32 high)
+const metadata = attribute(String name)
+
 [page("/")]
 const home = function() String {
     return "welcome"
@@ -75,7 +85,8 @@ const Gauge = struct {
 
 // The arguments of an attribute are known while the program is being built. They are literals,
 // consts made from literals, enum values (Kind.Function, Visibility.Private), and the result of compile() (section 3).
-// [cached(unknown_at_runtime)]             // ERROR: an attribute argument must be known at compile time
+let seconds = 5
+// [cached(seconds)] const slow = 1          // ERROR: an attribute argument must be known at compile time
 
 // Attributes that come with the language:
 //   [deprecated("reason")]  using the declaration is a compile-time warning that shows the reason
@@ -105,13 +116,7 @@ const old_level = 1
 
 // PATTERN 1: METADATA ONLY. Nothing follows the parentheses. The arguments are stored on the declaration, and
 // that is all. This is enough when the attribute is only a fact that other code reads (section 4).
-const page = attribute(String path)
-const cached = attribute(i32 seconds)
-const version = attribute(i32 number)
-const table = attribute(String name)
-const key = attribute()
-const between = attribute(i32 low, i32 high)
-const metadata = attribute(String name)
+// These are the attributes declared at the top of section 1: page, cached, version, table, key, between and metadata.
 
 // PATTERN 2: A BUILD HOOK. A block after the parentheses runs once for each use, while the program is being built.
 // The block has parameters between | |: first the declaration the attribute sits on, then the declared parameters in
@@ -224,13 +229,12 @@ const hailed = Hailer(name = "ann").hello("bob")     // prints "hello on Hailer"
 // Kind is the enum of section 4. The kind also decides the type of target in the hooks.
 [on(Kind.Function)]
 const handler = attribute(String name)
-// [handler("x")]
-// const not_a_function = 1                 // ERROR: handler can only be put on a function
+// [handler("x")] const not_a_function = 1   // ERROR: handler can only be put on a function
 
 // Using an attribute that was not declared, or giving it the wrong arguments, is a compile error.
-// [missing]                              // ERROR: missing is not declared
-// [page(5)]                               // ERROR: path is a String, 5 is an i32
-// [page("/a", "/b")]      // ERROR: page takes one argument
+// [missing] const m = 1                   // ERROR: missing is not declared
+// [page(5)] const m = 1                   // ERROR: path is a String, 5 is an i32
+// [page("/a", "/b")] const m = 1          // ERROR: page takes one argument
 
 
 // ============================================================
@@ -535,8 +539,7 @@ const inherited = -v3                             // negate was not replaced, so
 //     the value decides, so a base type holding a subclass runs the replaced operator.
 //   - A class may declare == with Op.Eq. That makes == compare what the method compares, as it does for a struct.
 //   - Operators are inherited and replaced like other methods, and a final or private operator method is final or private.
-// [operator(Op.Add)]
-// const add = method() Vector { return Vector() }    // ERROR: Op.Add is binary: a method takes one parameter, the right operand
+// const Bad = class { [operator(Op.Add)] const add = method() Vector { return Vector() } }    // ERROR: Op.Add is binary: a method takes one parameter, the right operand
 // Rules:
 //   - At least one parameter must be a type you declared, so i32 + i32 can never be changed.
 //   - The number of parameters must fit the operator: two for a binary one, one for a unary one.
@@ -545,11 +548,9 @@ const inherited = -v3                             // negate was not replaced, so
 //   - Two functions may share an operator when their parameter types differ. This is the only overloading in Raga.
 //   - Nothing is converted for you: Vec * 2 is an error because 2 is an i32 and scale_vec takes an f64.
 //   - On a non-primitive value ==, as always, compares references. An == operator is declared only for your structs, unions and classes.
-// [operator(Op.Add)]
-// const bad = function(i32 a, i32 b) i32 { return a + b }    // ERROR: no parameter is a type you declared
-// [operator(Op.Add)]
-// const bad = function(Vec a) Vec { return a }               // ERROR: + is binary, two parameters
-// [operator(Op.And)]                                         // ERROR: Op has no And, && cannot be overloaded
+// [operator(Op.Add)] const bad = function(i32 a, i32 b) i32 { return a + b }    // ERROR: no parameter is a type you declared
+// [operator(Op.Add)] const bad = function(Vec a) Vec { return a }               // ERROR: + is binary, two parameters
+// [operator(Op.And)] const bad = function(Vec a, Vec b) bool { return true }    // ERROR: Op has no And, && cannot be overloaded
 // const bad = Vec(x = 0.0, y = 0.0) * 2                      // ERROR: no operator for Vec and i32
 
 
