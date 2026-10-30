@@ -1,7 +1,7 @@
 // Data structures: the built-in collections Array, List, Tuple, Set and Map
-// Creating them, reading and changing them, sharing, copying and comparing them, and their type arguments
+// Creating them, reading and changing them, copying, sharing and comparing them, and their type arguments
 //
-// They are non-primitive values (01-basics section 10): the name holds a reference, and an assignment shares the value.
+// They are non-primitive values (01-basics section 10): the name owns the value, and an assignment copies it.
 // Array, List and Tuple have a literal: {1, 2, 3}, [1, 2, 3] and (1, 2.5), the same as their constructors. Set and Map
 // have no literal, they are created with Set(...) and Map(...).
 // Each one is generic, written like your own generic types (05-structs-enums-unions section 7).
@@ -28,7 +28,7 @@
 
 // --- Array: an ordered sequence, fixed size, all elements have the same type ---
 // Once created, an Array can neither grow nor shrink, but an element can be replaced in place.
-const days = {1, 2, 3}       // Array<i32>
+let days = {1, 2, 3}       // Array<i32>
 Array<f64> ws = {1.5, 2.5}   // explicit element type
 const first3 = days.get(0)        // 1 (i32)
 const dlen   = days.len()         // 3 (usize)
@@ -38,7 +38,7 @@ days.set(0, 9)                    // OK: replace the element at index 0, now 9, 
 // days.set(0, 2.5)               // ERROR: the element must stay i32
 // days.set(3, 9)                 // throws an Error: there is no element at index 3, an Array cannot grow
 // days.push(4)                   // ERROR: an Array has a fixed size
-const same_days = days == {1, 2, 3}  // false: two separate Arrays, even though the contents are equal
+// const same_days = days == {1, 2, 3}  // ERROR: == is not defined for an Array, compare the elements
 
 
 // ============================================================
@@ -46,7 +46,7 @@ const same_days = days == {1, 2, 3}  // false: two separate Arrays, even though 
 // ============================================================
 
 // --- List: an ordered, growable and mutable sequence, all elements have the same type ---
-const nums = [1, 2, 3]        // List<i32>
+let nums = [1, 2, 3]        // List<i32>
 List<f64> fs = [1.5, 2.5]     // explicit element type
 const none = List<i32>()          // an empty List<i32>: pass the type in angle brackets
 nums.push(4)                      // add at the end:      1, 2, 3, 4
@@ -76,7 +76,7 @@ letters.reverse()                 // d, c, b: the List itself is turned around, 
 // --- Tuple: a fixed number of values, each may have a different type ---
 // The position gives each value its meaning: slot 0 and slot 1 are different things.
 // Like an Array it cannot grow or shrink, but a slot can be replaced in place.
-const pair = (1, 2.5)        // Tuple<i32, f64>
+let pair = (1, 2.5)        // Tuple<i32, f64>
 const t0   = pair.get(0)          // 1 (i32)
 const t1b  = pair.get(1)          // 2.5 (f64)
 pair.set(0, 9)                    // OK: slot 0 is now 9, (9, 2.5)
@@ -104,12 +104,10 @@ let which = 0
 // A Map is a hash table: a key is turned into a number (its hash) that says where to look, so finding a key does not
 // walk through the whole Map. A key is a primitive value or a String, and nothing else. Two keys are the same key when:
 //   - a primitive (integer, float, char, bool): the values are equal
-//   - a String: the text is equal (the one place where a collection compares text and not references, because a
-//     key that is typed again must find the same entry)
-// Any other type, a List, a struct, a class object, an enum, is not a key, because it would be found only by the very same
-// value and that is rarely what is wanted. To look up by what is inside such a value, build a String or a number from its
-// parts and use that as the key.
-const ages = Map("ann", 31, "bob", 27)                  // Map<String, i32>, the arguments are key, value, key, value
+//   - a String: the text is equal, so a key that is typed again finds the same entry
+// Any other type, a List, a struct, a class object, an enum, is not a key, because it has no == to find it by.
+// To look up by what is inside such a value, build a String or a number from its parts and use that as the key.
+let ages = Map("ann", 31, "bob", 27)                  // Map<String, i32>, the arguments are key, value, key, value
 ages.set("cy", 40)
 const age  = ages.get("ann")                            // 31 (i32)
 const known_cy = ages.has("cy")                          // true: the text is the same
@@ -130,20 +128,19 @@ ages.remove("cy")                                       // the key and its value
 // ============================================================
 
 // --- Set: values without duplicates ---
-const ids = Set(1, 2, 3)          // Set<i32>
+let ids = Set(1, 2, 3)          // Set<i32>
 ids.add(2)                        // still 3 values
 const has_two = ids.contains(2)    // true
 const id_count = ids.len()        // 3
 ids.remove(1)                     // 2 values remain
 
-// A Set holds each value once. What counts as the same value is == (section 7): equal primitives are the same value, and a
-// non-primitive value is the same only as the very same value. So a Set of Strings keeps two equal-looking Strings apart:
+// A Set holds each value once. What counts as the same value is == (section 7): equal primitives are the same value, and
+// Strings with the same text are the same value. A Set can only hold a type that has ==, so a Set<List<i32>> is an error.
 const letter = "a"
-const one_value = Set(letter, letter)           // 1 value: the same String twice
-const two_values = Set("a", "a")                // 2 values: two separate Strings, even though the text is equal
+const one_value = Set(letter, letter)           // 1 value: the same text twice
+const two_values = Set("a", "b")                // 2 values
 const one_size = one_value.len()                // 1
 const two_size = two_values.len()               // 2
-// To keep each text once, use a Map with the text as the key: a String key is found by its text (section 5).
 
 // A for loop goes over a Set in no fixed order, so only use what does not depend on the order.
 let id_total = 0
@@ -153,39 +150,41 @@ for (ids) |id| {
 
 
 // ============================================================
-// 7. SHARING, COPYING AND COMPARING
+// 7. COPYING, SHARING AND COMPARING
 // ============================================================
 
-// --- const protects the name, not the value ---
-const shared = nums
-shared.push(5)                    // nums changes too: both names are one List
-// shared = [9]               // ERROR: cannot assign to const
+// --- assignment is a copy ---
+let shared = nums
+shared.push(5)                    // nums is unchanged: shared is its own List
 let   other = [1]
 other = [2]                   // OK: let can be rebound
 
-// A separate copy is made on purpose. Every non-primitive type has its own clone method.
-const copy = nums.clone()         // changing copy does not change nums
+// A separate copy is the assignment itself. There is no clone, and a copy goes all the way down:
+// a List of Lists is copied with every inner List, so the copy shares nothing with the original.
+let copy = nums
+copy.push(6)                      // changing copy does not change nums
 
-// Comparing: == on a non-primitive value compares the reference, so a value equals itself and its clone does not.
-const same_nums = nums == shared           // true: shared refers to nums
-const same_copy = nums == copy             // false: copy is a separate List
-// Only String has a method that compares contents, equals, it compares the text. Nothing else compares
-// contents on its own: switch, contains and Set values use == as well. Only the String keys of a Map are found by text.
-// No other non-primitive type can be compared by contents. To compare two Lists, compare their elements one by one.
+// --- const protects the whole value ---
+const frozen = [1, 2]
+// frozen.push(3)                 // ERROR: frozen is const, push changes it
+// frozen = [9]                   // ERROR: cannot assign to const
+let thawed = frozen               // a copy can be changed
+
+// --- a pointer shares one value between two names (08-memory section 7) ---
+ptr<List<i32>> through = addr(nums)
+through.*.push(7)                 // nums itself changed
+
+// --- comparing ---
+// == is defined for the primitives, for String (by its text) and for enum members. It is not defined for the collections,
+// and there is no equals. To compare two Lists, compare their length and their elements one by one.
 const text1 = "hi"
-const same1 = text1.equals("hi")  // true: the same text
-const same2 = text1 == "hi"      // false: two separate Strings, == compares references, not the text
-// const bad = nums.equals(copy)          // ERROR: List has no equals
-// Every non-primitive type has its own clone, which makes a separate copy:
-//   String clone: a new String.     Array clone: a new Array.     List clone: a new List.
-//   Tuple  clone: a new Tuple.      Set   clone: a new Set.       Map  clone: a new Map.
-// clone copies one level: when the elements are non-primitive values, the copy holds the same elements as the original.
-
-// == on a non-primitive value asks whether two names refer to the very same value, not whether their contents are equal.
-const hv1 = [1]
-const hv2 = hv1
-const ref_same = hv1 == hv2                    // true: one List, two names
-const ref_diff = [1] == [1]            // false: two separate Lists, even though the contents are equal
+const same1 = text1 == "hi"       // true: the same text
+const same2 = text1 != "ho"       // true: different text
+// const bad = nums == copy       // ERROR: == is not defined for List<i32>
+// const bad_equals = nums.equals(copy)   // ERROR: List has no equals
+// const bad_clone = nums.clone()         // ERROR: List has no clone, assign it: let copy = nums
+// contains, switch and the values of a Set use == too, so they only work on a type that has ==.
+const same_len = nums.len() == copy.len() + 1     // compare the parts yourself
 
 
 // ============================================================

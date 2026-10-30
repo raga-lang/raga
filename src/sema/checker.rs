@@ -26,6 +26,10 @@ pub(super) struct Checker {
     pub(super) fns: Vec<FnCtx>,
     /// Functions whose return type is being worked out from their body: they cannot call themselves yet.
     pub(super) pending: HashSet<SymbolId>,
+    /// The functions declared inside another function that use a variable of the code around them (a closure).
+    pub(super) closures: HashSet<SymbolId>,
+    /// Whether the function whose body was checked last uses a variable of the code around it.
+    pub(super) last_function_captures: bool,
     /// The types the program defines, and `Optional` and `Result`.
     pub(super) types: Vec<TypeDef>,
     /// The type of `this`, set while the body of a method is about to be read.
@@ -70,6 +74,8 @@ impl Checker {
             type_params: Vec::new(),
             fns: Vec::new(),
             pending: HashSet::new(),
+            closures: HashSet::new(),
+            last_function_captures: false,
             types: builtin_types(),
             method_this: None,
             exhaustive: HashSet::new(),
@@ -267,6 +273,9 @@ impl Checker {
         }
         let got = self.expr(&decl.init, None);
         if let Some(symbol) = symbol {
+            if self.last_function_captures && !self.fns.is_empty() {
+                self.closures.insert(symbol);
+            }
             self.pending.remove(&symbol);
             if matches!(got, Ty::Function(_)) {
                 self.scopes.symbols[symbol.0 as usize].ty = got;
@@ -452,12 +461,75 @@ impl Checker {
         }
     }
 
-    /// `p.x = v`: a field is changed. `const` protects a name, not the value it refers to, so the field of a const can change.
-    fn member_assignment(&mut self, assign: &Assign, object: &Expr, name: &ast::Ident) {
-        let receiver = match self.expr(object, None) {
-            Ty::Ptr(inner) if matches!(*inner, Ty::Defined { .. }) => *inner,
-            other => other,
+    /// The const or the parameter that a place is part of: `a.b.c` is part of `a`. Such a value cannot be changed in place.
+    /// A place behind `.*` is part of the variable the pointer points to, not of the pointer, so it has no such root.
+    pub(super) fn read_only_root(&self, place: &Expr) -> Option<(String, Binding)> {
+        match &place.kind {
+            // inside a method `this` is the value the method was called on, which the method may change
+            ExprKind::Name(name) if matches!(name.name.as_str(), "this" | "super") => None,
+            ExprKind::Name(name) => {
+                let symbol = self.scopes.lookup(&name.name)?;
+                let symbol = self.scopes.symbol(symbol);
+                // a type, a module and a function are not values that change in place: Counter.created = 1 is a static field
+                if matches!(
+                    symbol.ty,
+                    Ty::TypeValue { .. } | Ty::Module(_) | Ty::Function(_)
+                ) {
+                    return None;
+                }
+                let binding = symbol.binding;
+                matches!(binding, Binding::Const | Binding::Param)
+                    .then(|| (name.name.clone(), binding))
+            }
+            ExprKind::Member { object, .. } => self.read_only_root(object),
+            _ => None,
+        }
+    }
+
+    /// An in-place change (a field assignment, `push`, `set`, ...) of a const or of a parameter.
+    pub(super) fn check_not_read_only(
+        &mut self,
+        place: &Expr,
+        change: &str,
+        span: crate::span::Span,
+    ) {
+        let Some((name, binding)) = self.read_only_root(place) else {
+            return;
         };
+        let what = if binding == Binding::Const {
+            "const"
+        } else {
+            "a parameter"
+        };
+        self.error(
+            span,
+            format!(
+                "`{name}` is {what} and its value cannot change in place, but {change}. Copy it into a let to change the copy"
+            ),
+        );
+    }
+
+    /// `p.x = v`: a field is changed. A const value cannot change, so neither can its fields.
+    fn member_assignment(&mut self, assign: &Assign, object: &Expr, name: &ast::Ident) {
+        let receiver = self.expr(object, None);
+        self.check_not_read_only(
+            object,
+            &format!("this assigns the field `{}`", name.name),
+            name.span,
+        );
+        if let Ty::Ptr(inner) = &receiver
+            && matches!(**inner, Ty::Defined { .. })
+        {
+            self.error(
+                name.span,
+                format!(
+                    "a pointer has no field `{0}`: follow it first with .*, write p.*.{0}",
+                    name.name
+                ),
+            );
+            self.expr(&assign.value, None);
+            return;
+        }
         let field = match &receiver {
             Ty::Defined { .. } => self.field_type_for(&receiver, name, true),
             Ty::TypeValue {
@@ -652,6 +724,19 @@ impl Checker {
             Ty::Int(_) | Ty::Float(_) | Ty::Bool | Ty::Char | Ty::String
         ) {
             format!("{got} is not {wanted}, convert it first: {wanted}(...)")
+        } else if let (
+            Ty::Defined { id, name, .. },
+            Ty::Defined {
+                name: got_name,
+                supers,
+                ..
+            },
+        ) = (wanted, got)
+            && supers.contains(id)
+        {
+            format!(
+                "a {got_name} stored as a {name} would lose its extra fields: point at it instead, ptr<{name}> p = addr(variable)"
+            )
         } else {
             format!("{got} is not {wanted}")
         };

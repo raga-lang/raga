@@ -268,10 +268,12 @@ const c4 = 2 >= 2              // true
 const c5 = 1 < 2               // true
 const c6 = 1 <= 1              // true
 
-// == and != always compare what the name holds. For a primitive that is the value itself.
-// For a non-primitive value the name holds a reference to it, so == asks whether two names refer to the very same
-// value, not whether their contents are equal (section 10).
-// For example, [1] == [1] is false: two separate Lists, even though the contents are equal.
+// == and != compare two values of the same type. They are defined for:
+//   - the primitives: numbers, bool and char by value, and a ptr<T> by address (08-memory section 7),
+//   - String, by its text: "a" == "a" is true,
+//   - an enum member, by its number (05-structs-enums-unions section 6).
+// They are not defined for any other non-primitive value: [1] == [1] is an error, not false. Compare the parts you
+// care about (a.len() == b.len(), a.get(0) == b.get(0)), or declare == for your own type (09-attributes-and-reflection).
 // See 02-data-structures section 7.
 
 // logic, the operands must be bool
@@ -307,7 +309,7 @@ v += 3                         // 5   same as v = v + 3
 
 // precedence, from tightest to loosest:
 //   1. postfix        .name  .*  (...)  [call, member access, and the value a pointer points to]
-//   2. prefix         -  !  ~  &       [negate, not, bit not, address of]
+//   2. prefix         -  !  ~          [negate, not, bit not]
 //   3. multiply       *  /  %
 //   4. add            +  -
 //   5. shift          <<  >>
@@ -320,7 +322,7 @@ v += 3                         // 5   same as v = v + 3
 //  12. logic or       ||
 //  13. assignment     =  +=  -=  ...
 // A postfix operator binds tighter than a prefix one: -p.* is -(p.*) and !items.contains(2) is !(items.contains(2)).
-// The & in front of a name is the address, the & between two values is the bit and (rows 2 and 8).
+// & is only the bit and between two values (row 8). The address of a variable is the function addr(x) (08-memory section 7).
 // Use parentheses to make the order clear: (1 + 2) * 3
 const pr = (1 + 2) * 3         // 9
 const pq = 1 + 2 * 3           // 7
@@ -426,20 +428,21 @@ const k5 = f64("2.5")    // 2.5
 //                  primitive                   non-primitive
 //   type names     i32 f64 bool char ...       String Array List Tuple Map Set, and every type you declare
 //   name starts    with a lowercase letter     with a capital letter
-//   the name holds the value itself            a reference to a value that lives on the heap
-//   assignment     copies the value            shares the value: both names refer to the same one
-//   == compares    the values                  the references: are they the very same value?
-//   copy           the assignment itself       clone
+//   the name holds the value itself            the value itself, and what the value owns (text, elements, fields)
+//   assignment     copies the value            copies the value and everything it owns
+//   == compares    the values                  String and enum members only, no other type has a built-in ==
+//   share          addr(x), a ptr<T>           addr(x), a ptr<T>
 //   created by     a literal: 5, 2.5, true     a literal or a constructor: "abc", [1, 2, 3], Point(x = 1.0, y = 2.0)
 //   inferred       from a literal              from a literal or from the constructor
 //
-// Primitives are i8..u128, isize, usize, f32..f128, bool, char and ptr<T>. A primitive lives on the stack.
+// Primitives are i8..u128, isize, usize, f32..f128, bool, char and ptr<T>. A primitive has a fixed size.
 // Every other type is non-primitive: String, Array, List, Map, Set, Tuple, Function, Optional, Result, and every struct, enum,
 // union, class, interface, trait and alias that you declare (05-structs-enums-unions, 07-classes-and-traits).
-// A non-primitive value lives on the heap, and the stack holds only the reference to it. That is the whole rule.
-// There is no third kind of value, so a capital letter always means "shared, not copied".
+// A non-primitive value is still a value: its name owns it, and what it owns (the text of a String, the elements of a
+// List) is copied and freed with it. Nothing is shared unless you make a pointer to it (08-memory). That is the whole rule.
+// There is no third kind of value, so a capital letter always means "owns storage that is copied with it".
 //
-// An enum member is one constant that every name for it shares, so two names for the same member are equal.
+// An enum member is a constant, and two names for the same member are equal.
 //
 // A non-primitive value is made by a literal or by its constructor:
 //   "abc"   {1, 2, 3}   [1, 2, 3]   (1, 2.5)   Set(1, 2, 3)   Map("a", 1)
@@ -496,15 +499,15 @@ const short_form = $("hello %s, you are %d", "ann", 31)               // the sam
 // String.format("%q", 1)                // ERROR: %q is not a format
 String s2 = String("hello")      // the constructor written out, the same as "hello"
 
-// A separate copy of a String is not needed: it is immutable, so sharing one is always safe.
-// Comparing text: equals compares the text, and == on a String compares references, not the text.
+// A String is immutable, so a copy of one can never be told apart from the original.
+// Comparing text: == on two Strings compares the text. There is no equals.
 const text1 = "hi"
-const same1 = text1.equals("hi")  // true: the same text
-const same2 = text1 == "hi"      // false: two separate Strings, == compares references, not the text
+const same1 = text1 == "hi"       // true: the same text
+const same2 = text1 != "ho"       // true: different text
 
 // The collections are non-primitive values too. Array, List, Tuple, Set and Map are explained in 02-data-structures.
 
-// A non-primitive value lives as long as something still refers to it (section 11).
+// A value lives until the end of the block its name was declared in (08-memory section 6).
 
 
 // ============================================================
@@ -528,9 +531,8 @@ const sh = 1
 }
 print(sh)                         // 1
 
-// Lifetime of a primitive: it is gone when its block ends, unless a function declared inside that block uses it
-// (04-functions section 15). Such a variable is moved to the heap and lives as long as any function that uses it.
-// Lifetime of a non-primitive value: it lives as long as something still refers to it.
+// Lifetime of a value, primitive or not: it is gone when the block of its name ends (08-memory section 6). A non-primitive
+// value is freed with everything it owns. A function declared inside the block uses the variable, it does not keep it alive.
 
 // Top-level names are visible everywhere in the file, below their declaration.
 // A name is visible only below its declaration. So two functions cannot call each other, and a type cannot use a type
@@ -561,9 +563,9 @@ print(sh)                         // 1
 
 // Built-in names cannot be declared again at the top level of a file. That is a compile error, because the new name
 // would hide the built-in one for the whole file:
-//   functions   print len range read_line sleep typeof sizeof alignof alloc free compile reflect
+//   functions   print len range read_line sleep typeof sizeof alignof alloc free addr compile reflect
 //               attributes_of get_field set_field import export $
-//   types       String Array List Tuple Set Map Function Optional Result Error Weak Any TypeInfo FieldInfo VariantInfo
+//   types       String Array List Tuple Set Map Function Optional Result Error Any TypeInfo FieldInfo VariantInfo
 //               AttributeInfo BindingInfo Kind Op Module Visibility Inheritance Ownership Math System File Time Random IError
 // const print = 1                // ERROR: print is built in, choose another name
 // const List = struct { }        // ERROR: List is a built-in type

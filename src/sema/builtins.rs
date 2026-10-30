@@ -73,6 +73,7 @@ const RESERVED_FUNCTIONS: &[&str] = &[
     "alignof",
     "alloc",
     "free",
+    "addr",
     "compile",
     "reflect",
     "attributes_of",
@@ -93,7 +94,6 @@ const RESERVED_TYPES: &[&str] = &[
     "Optional",
     "Result",
     "Error",
-    "Weak",
     "Any",
     "Function",
     "TypeInfo",
@@ -243,9 +243,9 @@ pub fn string_function(name: &str) -> Option<Sig> {
 pub fn string_method(name: &str) -> Option<Sig> {
     use Param::{String, Usize};
     Some(match name {
-        "upper" | "lower" | "trim" | "clone" => sig(&[], Ret::String),
+        "upper" | "lower" | "trim" => sig(&[], Ret::String),
         "len" => sig(&[], Ret::Usize),
-        "contains" | "equals" => sig(&[String], Ret::Bool),
+        "contains" => sig(&[String], Ret::Bool),
         "split" => sig(&[String], Ret::ListOfString),
         "replace" => sig(&[String, String], Ret::String),
         "index_of" => sig(&[String], Ret::Usize),

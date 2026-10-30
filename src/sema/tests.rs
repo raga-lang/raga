@@ -688,7 +688,7 @@ fn a_tuple_has_a_type_for_each_slot() {
 
 #[test]
 fn the_methods_of_a_list() {
-    let list = "const xs = [1, 2, 3]\n";
+    let list = "let xs = [1, 2, 3]\n";
     ok(&format!(
         "{list}xs.push(4)\nxs.unshift(0)\nxs.insert(1, 9)\nxs.set(0, 5)\nxs.reverse()"
     ));
@@ -704,9 +704,14 @@ fn the_methods_of_a_list() {
         type_of(&format!("{list}const a = xs.contains(2)"), "a"),
         "bool"
     );
+    // at gives a pointer to the element, and it changes the list like set does
     assert_eq!(
-        type_of(&format!("{list}const a = xs.clone()"), "a"),
-        "List<i32>"
+        type_of(&format!("{list}const a = xs.at(0)"), "a"),
+        "ptr<i32>"
+    );
+    fails(
+        "const fixed = [1]\nconst a = fixed.at(0)",
+        "`fixed` is const",
     );
     fails(
         &format!("{list}xs.push(2.5)"),
@@ -725,7 +730,7 @@ fn the_methods_of_a_list() {
 
 #[test]
 fn an_array_cannot_grow() {
-    let array = "const xs = {1, 2, 3}\n";
+    let array = "let xs = {1, 2, 3}\n";
     ok(&format!("{array}xs.set(0, 9)"));
     fails(
         &format!("{array}xs.push(4)"),
@@ -740,8 +745,8 @@ fn the_methods_of_a_set_and_a_map() {
         type_of("const s = Set(1)\nconst a = s.contains(1)", "a"),
         "bool"
     );
-    ok("const s = Set(1)\ns.add(2)\ns.remove(1)");
-    let map = "const m = Map(\"a\", 1)\n";
+    ok("let s = Set(1)\ns.add(2)\ns.remove(1)");
+    let map = "let m = Map(\"a\", 1)\n";
     ok(&format!("{map}m.set(\"b\", 2)\nm.remove(\"a\")"));
     assert_eq!(type_of(&format!("{map}const a = m.get(\"a\")"), "a"), "i32");
     assert_eq!(
@@ -769,7 +774,7 @@ fn the_methods_of_a_set_and_a_map() {
 
 #[test]
 fn a_tuple_slot_is_chosen_by_a_literal_or_a_const_made_from_one() {
-    let tuple = "const pair = (1, 2.5)\n";
+    let tuple = "let pair = (1, 2.5)\n";
     assert_eq!(
         type_of(&format!("{tuple}const a = pair.get(0)"), "a"),
         "i32"
@@ -824,13 +829,46 @@ fn a_const_made_from_a_literal_remembers_its_value() {
 }
 
 #[test]
-fn every_collection_can_be_cloned_and_compared_by_identity() {
-    ok("const a = [1]\nconst b = a.clone()\nconst same = a == b");
-    ok("const a = {1}\nconst same = a == {1}");
-    ok("const a = Set(1)\nconst same = a == a.clone()");
-    ok("const a = Map(\"k\", 1)\nconst same = a != a.clone()");
-    ok("const a = (1, 2.5)\nconst b = a.clone()");
-    ok("const a = \"hi\"\nconst b = a.clone()");
+fn a_collection_is_copied_by_assignment_and_has_no_clone_or_equals() {
+    ok("const a = [1]\nlet b = a\nb.push(2)");
+    fails(
+        "const a = [1]\nconst b = a.clone()",
+        "List<i32> has no method `clone`",
+    );
+    fails(
+        "const a = [1]\nconst same = a == a",
+        "`==` is not defined for List<i32>",
+    );
+    fails(
+        "const a = {1}\nconst same = a == {1}",
+        "`==` is not defined for Array<i32>",
+    );
+    fails(
+        "const a = Set(1)\nconst same = a == a",
+        "`==` is not defined for Set<i32>",
+    );
+    fails(
+        "const a = (1, 2.5)\nconst b = a.clone()",
+        "has no method `clone`",
+    );
+    ok("const a = \"hi\"\nconst same = a == \"hi\"");
+    fails(
+        "const a = \"hi\"\nconst b = a.clone()",
+        "String has no method `clone`",
+    );
+    fails(
+        "const a = \"hi\"\nconst b = a.equals(a)",
+        "String has no method `equals`",
+    );
+    // a Set holds values that have ==, and contains looks for one
+    fails(
+        "Set<List<i32>> s = Set()",
+        "a Set holds values that can be compared",
+    );
+    fails(
+        "const l = [[1]]\nconst has = l.contains([1])",
+        "contains looks for a value with ==",
+    );
     fails(
         "const a = [1]\nconst b = a.equals(a)",
         "List<i32> has no method `equals`",
@@ -1350,8 +1388,12 @@ fn a_function_is_a_value() {
         "Function<[String, i32], String>"
     );
     ok(&format!(
-        "{shout}Function<[String, i32], String> current = shout\ncurrent = whisper\nconst same = current == whisper"
+        "{shout}Function<[String, i32], String> current = shout\ncurrent = whisper"
     ));
+    fails(
+        &format!("{shout}const same = shout == whisper"),
+        "`==` is not defined for Function",
+    );
     ok(&format!(
         "{shout}const style = function(bool loud) Function<[String, i32], String> {{ if (loud) {{ return(shout) }}\nreturn(whisper) }}\nconst speak = style(true)\nconst line = speak(\"hi\", 3)\nconst quiet = style(false)(\"hi\", 3)"
     ));
@@ -1550,7 +1592,7 @@ fn an_array_can_be_written_as_the_block() {
 
 #[test]
 fn a_sort_takes_a_callback() {
-    let sorted = "const by_size = function(i32 a, i32 b) i32 { return(a - b) }\nconst ranking = [30, 10, 20]\n";
+    let sorted = "const by_size = function(i32 a, i32 b) i32 { return(a - b) }\nlet ranking = [30, 10, 20]\n";
     ok(&format!("{sorted}ranking.sort(by_size)"));
     ok(&format!(
         "{sorted}ranking.sort() |a, b| {{ return(b - a) }}"
@@ -1567,14 +1609,22 @@ fn a_sort_takes_a_callback() {
 
 #[test]
 fn a_function_declared_inside_another_uses_the_names_around_it() {
-    let counter = "const make_counter = function(i32 start) Function<void, i32> {\nlet count = start\nconst next = function() i32 {\ncount = count + 1\nreturn(count)\n}\nreturn(next)\n}\n";
+    // a closure can be used while the variables it uses are alive
+    let counter =
+        "let calls = 0\nconst count_call = function() i32 {\ncalls = calls + 1\nreturn(calls)\n}\n";
     ok(counter);
     assert_eq!(
-        type_of(
-            &format!("{counter}const c = make_counter(10)\nconst a = c()"),
-            "a"
-        ),
+        type_of(&format!("{counter}const a = count_call()"), "a"),
         "i32"
+    );
+    // but it cannot be returned from the function whose variables it uses
+    fails(
+        "const make_counter = function(i32 start) Function<void, i32> {\nlet count = start\nconst next = function() i32 {\ncount = count + 1\nreturn(count)\n}\nreturn(next)\n}\n",
+        "uses variables of the function that returns it",
+    );
+    // a function that uses nothing around it can be returned
+    ok(
+        "const make_one = function() Function<void, i32> {\nconst one = function() i32 { return(1) }\nreturn(one)\n}\n",
     );
     // only names declared above are visible
     fails(
@@ -1591,7 +1641,7 @@ fn a_function_declared_inside_another_uses_the_names_around_it() {
         "`n` is a parameter and cannot be assigned",
     );
     ok(
-        "const items = List<Function<[i32], i32>>()\nfor (range(0, 3)) |step| { items.push(function(i32 v) i32 { return(v + step) }) }\nconst added = items.get(2)(10)",
+        "let items = List<Function<[i32], i32>>()\nfor (range(0, 3)) |step| { items.push(function(i32 v) i32 { return(v + step) }) }\nconst added = items.get(2)(10)",
     );
 }
 
@@ -1636,8 +1686,11 @@ fn a_generic_function_takes_its_types_from_its_arguments_or_from_the_call() {
 
 #[test]
 fn a_type_parameter_has_only_what_every_type_has() {
-    ok("const pick = function<T>(T a, T b) bool { return(a == b) }");
-    ok("const keep = function<T>(T a) List<T> { const xs = List<T>()\nxs.push(a)\nreturn(xs) }");
+    fails(
+        "const pick = function<T>(T a, T b) bool { return(a == b) }",
+        "`==` is not defined for T",
+    );
+    ok("const keep = function<T>(T a) List<T> { let xs = List<T>()\nxs.push(a)\nreturn(xs) }");
     fails(
         "const bad = function<T>(T a, T b) T { return(a + b) }",
         "`+` needs numbers, but this is T",
@@ -1710,7 +1763,7 @@ fn a_function_type_is_checked_where_it_is_written() {
     );
     ok("const l = List<Function<[i32], i32>>()");
     fails(
-        "const l = List<Function<[i32], i32>>()\nl.push(function(String s) String { return(s) })",
+        "let l = List<Function<[i32], i32>>()\nl.push(function(String s) String { return(s) })",
         "is not Function<[i32], i32>",
     );
 }
@@ -1828,7 +1881,7 @@ fn a_field_with_a_default_may_be_left_out() {
 
 #[test]
 fn a_field_is_read_and_changed_with_a_dot() {
-    let p = format!("{POINT}const p = Point(x = 1.5, y = 2.5)\n");
+    let p = format!("{POINT}let p = Point(x = 1.5, y = 2.5)\n");
     assert_eq!(type_of(&format!("{p}const px = p.x"), "px"), "f64");
     ok(&format!("{p}p.x = 9.0\np.y += 1.0"));
     fails(&format!("{p}p.x = 1"), "write 1.0");
@@ -1845,27 +1898,25 @@ fn a_field_is_read_and_changed_with_a_dot() {
 }
 
 #[test]
-fn a_struct_is_compared_by_identity_and_cloned_with_changes() {
-    let p = format!("{POINT}const p = Point(x = 1.0, y = 2.0)\n");
-    ok(&format!(
-        "{p}const same = p == p\nconst c = p.clone()\nconst d = p.clone(x = 9.0)\nconst e = p.clone(x = 0.0, y = 0.0)"
-    ));
-    assert_eq!(
-        type_of(&format!("{p}const d = p.clone(x = 9.0)"), "d"),
-        "Point"
+fn a_struct_is_copied_by_assignment_and_has_no_equals_or_clone() {
+    let p = format!("{POINT}let p = Point(x = 1.0, y = 2.0)\n");
+    ok(&format!("{p}let c = p\nc.x = 9.0\nconst d = c.x == p.x"));
+    fails(
+        &format!("{p}const same = p == p"),
+        "`==` is not defined for Point",
     );
     fails(
-        &format!("{p}const d = p.clone(z = 1.0)"),
-        "Point has no field `z`",
-    );
-    fails(&format!("{p}const d = p.clone(x = 1)"), "write 1.0");
-    fails(
-        &format!("{p}const d = p.clone(1.0)"),
-        "clone takes the names of the fields to change",
+        &format!("{p}const c = p.clone()"),
+        "Point has no method `clone`",
     );
     fails(
         &format!("{p}const bad = p.equals(p)"),
         "Point has no method `equals`",
+    );
+    // a const value cannot change in place, a let can
+    fails(
+        &format!("{POINT}const q = Point(x = 1.0, y = 2.0)\nq.x = 3.0"),
+        "`q` is const",
     );
 }
 
@@ -2153,7 +2204,7 @@ fn a_generic_type_takes_its_arguments_from_the_values_or_the_context() {
         "i32"
     );
     fails(
-        &format!("{boxed}const b = Box<i32>(1)\nb.value = 2.5"),
+        &format!("{boxed}let b = Box<i32>(1)\nb.value = 2.5"),
         "decimal literal is never an integer",
     );
     fails(
@@ -2367,7 +2418,7 @@ fn the_error_of_a_catch_is_an_ierror_fixed_inside_the_block() {
         "String"
     );
     ok("try { throw(Error()) } catch |e| { const n = e.code + 1 }");
-    fails(
+    reports(
         "try { throw(Error()) } catch |e| { e = Error() }",
         "`e` is a parameter and cannot be assigned",
     );
@@ -2546,32 +2597,38 @@ fn a_trait_clash_must_be_written_out_in_the_class() {
 
 #[test]
 fn pointers_point_to_variables() {
-    ok("i32 t = 1\nptr<i32> p = &t\np.* = 2\np.* += 1\nconst v = p.*");
+    ok("i32 t = 1\nptr<i32> p = addr(t)\np.* = 2\np.* += 1\nconst v = p.*");
     ok("ptr<i32> e = null\nconst b = e == null");
-    fails("i32 t = 1\nptr<f64> p = &t", "ptr<i32> is not ptr<f64>");
-    fails("const c = 5\nconst p = &c", "const");
-    fails("const p = &(1 + 2)", "only a variable has an address");
+    fails(
+        "i32 t = 1\nptr<f64> p = addr(t)",
+        "ptr<i32> is not ptr<f64>",
+    );
+    fails("const c = 5\nconst p = addr(c)", "const");
+    fails(
+        "i32 t = 1\nconst p = &t",
+        "the address of a variable is addr(x)",
+    );
+    fails("const p = addr(1 + 2)", "only a variable has an address");
     fails("i32 n = null", "only a ptr<T> can be null");
     fails("const n = null", "null has no type of its own");
     fails(
-        "i32 t = 1\nptr<i32> p = &t\nconst q = p + 1",
+        "i32 t = 1\nptr<i32> p = addr(t)\nconst q = p + 1",
         "no pointer arithmetic",
     );
     fails(
-        "const f = function() ptr<i32> {\n    i32 local = 1\n    return(&local)\n}",
+        "const f = function() ptr<i32> {\n    i32 local = 1\n    return(addr(local))\n}",
         "cannot be returned",
     );
 }
 
 #[test]
-fn manual_memory_and_weak_references() {
+fn manual_memory_and_addresses() {
     ok("const b = alloc<u8>(4)\nb.at(1).* = 66\nfree(b)");
     fails("const b = alloc<List<i32>>()", "manages itself");
-    fails("i32 t = 1\nfree(&t)", "was not allocated");
+    fails("i32 t = 1\nfree(addr(t))", "was not allocated");
     ok("const s = sizeof<i32>()");
     fails("const s = sizeof<String>()", "no fixed size");
-    ok("const l = [1]\nconst w = Weak(l)\nconst a = w.alive()");
-    fails("const w = Weak(5)", "primitive");
+    fails("const w = Weak(5)", "`Weak` is not declared");
 }
 
 #[test]
@@ -2606,7 +2663,7 @@ fn reflection_reads_types_and_attributes() {
         "{s}const info = reflect<P>()\nconst n = info.name\nconst c = info.fields.len()"
     ));
     ok(&format!(
-        "{s}let p = P(x = 1)\nconst ptr1 = &p\nconst v = get_field(ptr1, \"x\").unwrap().as<i32>().unwrap()"
+        "{s}let p = P(x = 1)\nconst ptr1 = addr(p)\nconst v = get_field(ptr1, \"x\").unwrap().as<i32>().unwrap()"
     ));
     fails(
         "let n = 1\nconst c = compile(n)",

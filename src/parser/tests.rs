@@ -136,7 +136,6 @@ fn unary_operators() {
     assert_eq!(tree("-5"), "(neg 5)");
     assert_eq!(tree("!true"), "(not true)");
     assert_eq!(tree("~u8(0)"), "(bitnot (call u8 0))");
-    assert_eq!(tree("&x"), "(addr x)");
     assert_eq!(tree("- -5"), "(neg (neg 5))");
     assert_eq!(tree("-2 * 3"), "(* (neg 2) 3)");
 }
@@ -153,7 +152,16 @@ fn postfix_binds_tighter_than_prefix() {
 #[test]
 fn bit_and_is_not_address_of() {
     assert_eq!(tree("a & b"), "(& a b)");
-    assert_eq!(tree("&a & &b"), "(& (addr a) (addr b))");
+    assert_eq!(tree("addr(a) & addr(b)"), "(& (call addr a) (call addr b))");
+}
+
+#[test]
+fn a_prefix_ampersand_is_reported_and_names_addr() {
+    assert!(
+        errors("&x")
+            .iter()
+            .any(|m| m.contains("the address of a variable is addr(x)"))
+    );
 }
 
 #[test]

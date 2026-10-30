@@ -6,7 +6,7 @@
 
 use super::builtins;
 use super::checker::{Checker, is_untyped};
-use super::ty::{IntTy, Ty};
+use super::ty::{DefinedKind, IntTy, Ty};
 use crate::ast::{BinaryOp, Expr, ExprKind, Ident, UnaryOp};
 use crate::span::Span;
 
@@ -124,6 +124,7 @@ impl Checker {
     fn name(&mut self, expr: &Expr, name: &Ident, expected: Option<&Ty>) -> Ty {
         if let Some(symbol) = self.scopes.lookup(&name.name) {
             self.symbol_of.insert(expr.id, symbol);
+            self.note_capture(symbol);
             if let Some(reason) = self.deprecated.get(&symbol) {
                 let message = format!("`{}` is deprecated: {reason}", name.name);
                 self.diagnostics
@@ -222,11 +223,18 @@ impl Checker {
         if let Ty::Module(module) = ty {
             return self.module_value(module, name);
         }
-        // a field is reached through a pointer to a struct without `.*`
-        let ty = match ty {
-            Ty::Ptr(inner) if matches!(*inner, Ty::Defined { .. }) => *inner,
-            ty => ty,
-        };
+        if let Ty::Ptr(inner) = &ty
+            && matches!(**inner, Ty::Defined { .. })
+        {
+            self.error(
+                name.span,
+                format!(
+                    "a pointer has no field `{0}`: follow it first with .*, write p.*.{0}",
+                    name.name
+                ),
+            );
+            return Ty::Error;
+        }
         match &ty {
             Ty::TypeValue { .. } => return self.static_member(&ty, name, expected, object.span),
             Ty::Defined { .. } => return self.field_type(&ty, name).unwrap_or(Ty::Error),
@@ -299,7 +307,6 @@ impl Checker {
                     Ty::Error
                 }
             }
-            UnaryOp::AddrOf => self.addr_of(expr, operand, expected),
         }
     }
 
@@ -438,7 +445,27 @@ impl Checker {
                 }
                 Ty::Bool
             }
-            Equal | NotEqual => Ty::Bool,
+            Equal | NotEqual => {
+                let comparable = matches!(
+                    operand,
+                    Ty::Int(_) | Ty::Float(_) | Ty::Bool | Ty::Char | Ty::String | Ty::Ptr(_)
+                ) || matches!(
+                    operand,
+                    Ty::Defined {
+                        kind: DefinedKind::Enum,
+                        ..
+                    }
+                );
+                if !comparable {
+                    self.error(
+                        span,
+                        format!(
+                            "`{symbol}` is not defined for {operand}: compare the parts you care about, or declare it with [operator(Op.Eq)]"
+                        ),
+                    );
+                }
+                Ty::Bool
+            }
             And | Or => Ty::Bool,
         }
     }

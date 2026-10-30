@@ -214,8 +214,6 @@ pub enum UnaryOp {
     Not,
     /// `~x`
     BitNot,
-    /// `&x`, the address of a variable
-    AddrOf,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -281,7 +279,6 @@ impl UnaryOp {
             UnaryOp::Neg => "-",
             UnaryOp::Not => "!",
             UnaryOp::BitNot => "~",
-            UnaryOp::AddrOf => "&",
         }
     }
 }

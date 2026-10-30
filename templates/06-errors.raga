@@ -256,7 +256,7 @@ guarded(on_fail = log_message) {
 // The Error they throw has a message that says what happened and a non-zero code.
 // An integer divided by zero and a signed overflow are not on this list: they are undefined, as in C.
 
-const risky = List<i32>()
+let risky = List<i32>()
 try {
     risky.pop()                                    // the List is empty
 } catch |e| {

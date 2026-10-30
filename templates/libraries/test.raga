@@ -5,7 +5,7 @@ const Tally = struct {
     i32 passed
     i32 failed
 }
-const tally = Tally(passed = 0, failed = 0)
+let tally = Tally(passed = 0, failed = 0)
 
 const describe = function(String name, Function body) {
     print(name)

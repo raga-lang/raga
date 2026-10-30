@@ -429,10 +429,9 @@ impl Checker {
             Ty::Int(_) | Ty::Char | Ty::Error => None,
             Ty::Float(_) => Some("a float cannot be switched on: compare it in an if".to_string()),
             Ty::Bool => Some("a bool cannot be switched on: use an if".to_string()),
-            Ty::String => Some(
-                "a String cannot be switched on: it is compared by reference, compare its text with equals in an if"
-                    .to_string(),
-            ),
+            Ty::String => {
+                Some("a String cannot be switched on: compare it with == in an if".to_string())
+            }
             other => Some(format!(
                 "{other} cannot be switched on: switch takes an integer or a char, write match for an enum or a tagged union"
             )),

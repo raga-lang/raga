@@ -17,8 +17,8 @@
 // a struct plus its methods is the whole story. Classes, interfaces and traits are in 07-classes-and-traits.
 // A type is declared like a variable: const Name = kind { ... }
 // Type names are Capitalized, because every non-primitive type is. A value of a struct, an enum or a union is a
-// non-primitive value, like a String or a List: it lives on the heap, a name holds a reference to it, and an
-// assignment shares it. clone makes a separate copy.
+// non-primitive value, like a String or a List: the name owns it, and an assignment copies it with every field.
+// To share one, take a pointer with addr (08-memory). There is no clone.
 
 
 // ============================================================
@@ -48,31 +48,33 @@ Point p2     = Point(x = 3.0, y = 4.0)    // explicit type, same value
 // const bad = Point(z = 1.0)             // ERROR: Point has no field z
 // A struct with exactly one field may be created by position: UserId(7), see section 6.
 
-// Fields are read and written with a dot. const protects the name, not the Point it refers to.
+// Fields are read and written with a dot. const protects the whole Point: its fields cannot be assigned.
 const px = p1.x                           // 1.5 (f64)
-p2.x = 9.0                                // OK: the Point that p2 refers to changes
+p2.x = 9.0                                // OK: p2 is a let, so its field can change
 // p1 = p2                                // ERROR: p1 is const, a const name cannot be rebound
 // const bad = Point(x = 1, y = 2)       // ERROR: 1 is a whole number, write 1.0
 // const bad = Point(x = 1.0, y = height) // ERROR: height is not declared (x and y are field names, not variables)
 // const bad = Piont(x = 1.0)             // ERROR: the type Piont is not declared
 
-// == on a struct asks whether two names refer to the very same Point, not whether the fields are equal
-// (02-data-structures section 7). To compare the fields, compare them one by one: p1.x == p1b.x && p1.y == p1b.y.
-const same_p = Point(x = 1.0, y = 2.0) == Point(x = 1.0, y = 2.0)   // false: two separate Points
-const same_name = p1 == p1                 // true
+// == is not defined for a struct (01-basics section 7, 02-data-structures section 7). To compare the fields, compare them
+// one by one: p1.x == p1b.x && p1.y == p1b.y. A struct can declare its own comparison (section 10 and 09-attributes-and-reflection).
+const same_fields = p1.x == p1b.x && p1.y == p1b.y     // true
+// const same_p = p1 == p1b               // ERROR: == is not defined for Point
 
-// A struct is a non-primitive value: assignment shares it, it does not copy it.
-let   p3 = p1                             // p3 and p1 are two names for one Point
-p3.x = 0.5                                // p1.x is 0.5 too
-const p4 = p1.clone()                     // a separate Point: changing p4 does not change p1
+// A struct is a non-primitive value: assignment copies it. There is no clone, the assignment is the copy.
+let   p3 = p1                             // p3 is its own Point
+p3.x = 0.5                                // p1.x is unchanged
+let   p4 = p1                             // a separate Point: changing p4 does not change p1
 
-// A copy with some fields changed: clone takes the names of the fields to change, and every other field is copied.
-const p5 = p1.clone(x = 9.0)              // Point(x = 9.0, y = 2.5): p1 is unchanged
-const p6 = p5.clone(x = 0.0, y = 0.0)     // any number of fields can be named
-// A field that holds a non-primitive value is cloned like in a plain clone, unless it is the one that is named.
-// const bad = p1.clone(z = 1.0)          // ERROR: Point has no field z
-// const bad = p1.clone(x = 1)            // ERROR: 1 is not an f64, write 1.0
-// const bad = p1.clone(1.0)              // ERROR: clone takes the names of the fields to change, write p1.clone(x = 1.0)
+// A copy with some fields changed is a copy, then the change.
+let   p5 = p1
+p5.x = 9.0                                // Point(x = 9.0, y = 2.5): p1 is unchanged
+let   p6 = p5
+p6.x = 0.0
+p6.y = 0.0                                // any number of fields can be changed
+// p5.z = 1.0                             // ERROR: Point has no field z
+// p5.x = 1                               // ERROR: 1 is not an f64, write 1.0
+// To work on one Point through two names, take a pointer: ptr<Point> shared_point = addr(p3)
 
 // A struct can hold other structs and any other non-primitive value.
 const Line = struct {
@@ -99,7 +101,7 @@ const Window = struct {
     i32 height = 600
     List<String> tags = []                // a new List for every Window, the Windows below do not share one
 }
-const w1 = Window()                       // every field has a default, so nothing has to be given
+let w1 = Window()                       // every field has a default, so nothing has to be given
 const w2 = Window(title = "editor", width = 1024)     // height is 600 and tags is empty
 const w3 = Window()
 w1.tags.push("a")                         // w3.tags is still empty
@@ -117,19 +119,18 @@ const s_tilt = Segment(length = 2.0, angle = 0.5)
 // const Bad = struct { u8 level = 300 }          // ERROR: 300 does not fit in a u8
 // A default may use the names declared above the struct, not the other fields of the same struct.
 
-// Only String has an equals method. A struct has no equals, compare its fields yourself:
+// A struct has no ==, compare its fields yourself:
 const u1 = User(name = "ann", age = 31)
 const u2 = User(name = "ann", age = 31)
-const same_user = u1.name.equals(u2.name) && u1.age == u2.age   // true: text compared with equals, age with ==
+const same_user = u1.name == u2.name && u1.age == u2.age   // true: text compared with ==, age with ==
 
-// Every struct gets a clone method for free, generated from its fields:
-// a primitive field is copied, and a non-primitive field is cloned with its own clone.
-const u3 = u1.clone()                     // a copy: u3.name is a new String, not shared with u1.name
-// A struct can replace clone, or add its own comparison method, by declaring it (section 10).
+// A struct is copied by assigning it, field by field, and a field that holds a String or a List is copied with it:
+let u3 = u1                               // a copy: u3.name is its own String
+// A struct can add its own comparison method by declaring it (section 10).
 
 // Every struct and every untagged union has the layout of a C struct: the fields in the order they are written, each at a
 // multiple of its alignment, with padding at the end. So its layout is known, and the generated methods raw()
-// and Type.fromRaw(p) read and write it as bytes, explained with pointers in 08-memory section 7.
+// and Type.from_raw(p) read and write it as bytes, explained with pointers in 08-memory section 7.
 
 
 // ============================================================
@@ -169,7 +170,7 @@ const code = i32(Status.NotFound)         // 404
 // const bad = enum { const Red = 0; const Green = 0 }  // ERROR: Red and Green have the same value
 // const bad = enum { const Red }                       // ERROR: a member needs its value
 
-// An enum member is one shared constant, so == on two names for the same member is true.
+// An enum member is a constant, so == on two names for the same member is true. Enum members are compared by their number.
 const same = c1 == Color.Green            // true
 
 // The default value of an enum is its first name, so Color() is Color.Red.
@@ -286,7 +287,7 @@ const Figure = union {
 //     variant, written like a struct creation: Shape.Circle(radius = 2.0), or Shape.Circle(2.0) for a single field.
 //   - named from outside (Square, Triangle): the argument is a VALUE of that struct, which the variant wraps.
 const sq  = Square(side = 2.0)            // a Square on its own, not a Figure
-const fg1 = Figure.Square(sq)             // wraps the Square that sq refers to
+const fg1 = Figure.Square(sq)             // wraps a copy of sq
 const fg2 = Figure.Triangle(Triangle(base = 3.0, height = 4.0))   // wraps a new Triangle
 const fg3 = Figure.Dot                    // declared inside, and it has no fields
 // const bad = Figure.Square(2.0)                         // ERROR: Square is named from outside, give it a Square value
@@ -466,7 +467,7 @@ const Node = struct<T> {
 }
 // A type can use its own name in its own body, so a type can hold more of itself. The field must not hold the type
 // directly, because a value of it could never be created (it would need another value of itself first). It goes through
-// a type that can be empty or can have any number of values: Optional<T>, List<T>, Array<T> or Weak<T>.
+// a type that can be empty or can have any number of values: Optional<T>, List<T> or Array<T>, or through a pointer, ptr<T>.
 // Two different types cannot hold each other, because the first would have to name the second before it exists.
 const Tree = struct {
     i32 value
@@ -582,7 +583,8 @@ const ov = outcome(good)                  // 1
 // (The members of a class are written differently, see 07-classes-and-traits.)
 // It is called on a value: counter.increment().
 // Inside a method, `this` is the value the method was called on.
-// A method may assign to the fields of this. A struct is shared, so every name that refers to it sees the change.
+// A method may assign to the fields of this: it changes the value it was called on, not a copy. A const value cannot be
+// changed in place, so a method that assigns to this is called on a let.
 // Methods are stored once per type, not once per value, so they take no space in a value.
 
 const Counter = struct {
@@ -628,7 +630,7 @@ const Tag = struct {
     i32 id
 
     const same_as = function(Tag other) bool {
-        return(this.name.equals(other.name))
+        return(this.name == other.name)
     }
 }
 const tags_equal = Tag(name = "x", id = 1).same_as(Tag(name = "x", id = 2))   // true
@@ -935,7 +937,7 @@ loop {
 }
 // sum_of_steps is 6: the values were 3, then 2, then 1
 
-// The iterator is a struct, so it is shared like every struct: two names for one Countdown share its position.
+// The iterator is a struct, so it is copied like every struct: a copy of a Countdown has a position of its own.
 // An iterator over a List keeps the List and a position:
 const ListCursor = struct {
     List<i32> items

@@ -94,7 +94,14 @@ impl Parser<'_> {
             TokenKind::Minus => UnaryOp::Neg,
             TokenKind::Bang => UnaryOp::Not,
             TokenKind::Tilde => UnaryOp::BitNot,
-            TokenKind::Amp => UnaryOp::AddrOf,
+            TokenKind::Amp => {
+                self.error(
+                    token.span,
+                    "& is the bitwise and between two values: the address of a variable is addr(x)",
+                );
+                self.bump();
+                return self.unary();
+            }
             _ => return self.postfix(),
         };
         self.bump();

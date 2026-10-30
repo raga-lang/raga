@@ -164,7 +164,9 @@ impl Checker {
         {
             return self.reflection_call(call, name, type_args, args);
         }
-        if matches!(text, "alloc" | "free" | "sizeof" | "alignof") {
+        if matches!(text, "alloc" | "free" | "sizeof" | "alignof" | "addr")
+            && self.scopes.lookup(text).is_none()
+        {
             return self.memory_call(call, name, type_args, args, trailer);
         }
         if text == "ptr" && type_args.len() == 1 {
@@ -313,6 +315,9 @@ impl Checker {
             };
         }
         let receiver = self.expr(object, None);
+        if super::collections::changes_receiver(&receiver, &name.name) {
+            self.check_not_read_only(object, &format!("{} changes it", name.name), name.span);
+        }
         match receiver {
             Ty::Error => {
                 self.check_args(args);
@@ -341,7 +346,7 @@ impl Checker {
             Ty::TypeValue {
                 kind: DefinedKind::Struct | DefinedKind::RawUnion,
                 ..
-            } if name.name == "fromRaw" => self.static_from_raw(call, &receiver, args),
+            } if name.name == "from_raw" => self.static_from_raw(call, &receiver, args),
             Ty::TypeValue { .. } => self.construct_variant(call, &receiver, name, args, expected),
             Ty::Defined { .. } => {
                 self.instance_call(call, &receiver, name, type_args, args, trailer)

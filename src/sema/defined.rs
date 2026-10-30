@@ -91,7 +91,7 @@ impl TypeDef {
 
 pub(super) use super::ty::{
     ANY, ATTRIBUTE_INFO, BINDING_INFO, ERROR, FIELD_INFO, IERROR, KIND, OP, OPTIONAL, RESULT,
-    TYPE_INFO, VARIANT_INFO, WEAK,
+    TYPE_INFO, VARIANT_INFO,
 };
 
 /// `Optional<T>` and `Result<T, E>`, which come with the language and are made like any tagged union:
@@ -196,23 +196,6 @@ pub(super) fn builtin_types() -> Vec<TypeDef> {
             ..field("code", Ty::I32)
         },
     ];
-    // Weak<T> refers to a non-primitive value without keeping it alive (08-memory)
-    let mut weak = TypeDef::new("Weak", DefinedKind::Struct, vec!["T".to_string()]);
-    weak.methods.insert(
-        "get".into(),
-        function(
-            vec![],
-            Ty::Defined {
-                id: OPTIONAL,
-                name: "Optional".into(),
-                kind: DefinedKind::Union,
-                args: vec![param("T")],
-                supers: Vec::new(),
-            },
-        ),
-    );
-    weak.methods
-        .insert("alive".into(), function(vec![], Ty::Bool));
     // what reflection gives back (09-attributes-and-reflection)
     let named = |id: TypeId, name: &str, kind: DefinedKind, args: Vec<Ty>| Ty::Defined {
         id,
@@ -323,7 +306,6 @@ pub(super) fn builtin_types() -> Vec<TypeDef> {
         variant_struct("Err", &["T", "E"], vec![field("reason", param("E"))]),
         ierror,
         error,
-        weak,
         kind_enum,
         op_enum,
         field_info,
@@ -425,7 +407,6 @@ impl Checker {
             "Result" => Some(RESULT),
             "IError" => Some(IERROR),
             "Error" => Some(ERROR),
-            "Weak" => Some(WEAK),
             "Kind" => Some(KIND),
             "Op" => Some(OP),
             "FieldInfo" => Some(FIELD_INFO),
@@ -930,9 +911,6 @@ impl Checker {
             );
             self.check_arguments(args);
             return Ty::Error;
-        }
-        if id == WEAK {
-            return self.construct_weak(call, args, expected);
         }
         if id == ANY {
             return self.construct_any(call, args);
@@ -1506,58 +1484,6 @@ impl Checker {
         self.finish_arguments(call, *id, &known, Some(&variant.name))
     }
 
-    /// `value.clone()` and `value.clone(x = 9.0)`: a copy, with some fields of a struct changed.
-    pub(super) fn clone_call(&mut self, call: &Expr, receiver: &Ty, args: &[Arg]) -> Ty {
-        let Ty::Defined {
-            id,
-            kind,
-            args: type_args,
-            name,
-            ..
-        } = receiver
-        else {
-            return Ty::Error;
-        };
-        if *kind != DefinedKind::Struct || args.is_empty() {
-            if !args.is_empty() {
-                self.error(call.span, format!("clone of a {name} takes no arguments"));
-                self.check_arguments(args);
-            }
-            return receiver.clone();
-        }
-        let fields = self.fields_of(*id, type_args);
-        let mut seen: Vec<&str> = Vec::new();
-        for arg in args {
-            let Some(field) = &arg.name else {
-                self.error(
-                    arg.value.span,
-                    format!(
-                        "clone takes the names of the fields to change: write clone({} = ...)",
-                        fields.first().map_or("x", |f| f.name.as_str())
-                    ),
-                );
-                self.expr(&arg.value, None);
-                continue;
-            };
-            if seen.contains(&field.name.as_str()) {
-                self.error(field.span, format!("`{}` is given twice", field.name));
-            }
-            seen.push(&field.name);
-            match fields.iter().find(|f| f.name == field.name) {
-                Some(f) => {
-                    let ty = f.ty.clone();
-                    let got = self.expr(&arg.value, Some(&ty));
-                    self.expect_assignable(&ty, &got, &arg.value);
-                }
-                None => {
-                    self.error(field.span, format!("{name} has no field `{}`", field.name));
-                    self.expr(&arg.value, None);
-                }
-            }
-        }
-        receiver.clone()
-    }
-
     /// `receiver.name(args)` for a value of a defined type: one of its methods, or a field that holds a function.
     pub(super) fn instance_call(
         &mut self,
@@ -1594,12 +1520,6 @@ impl Checker {
                 call.span,
                 format!("{type_name}.{} takes no type arguments", name.name),
             );
-        }
-        if name.name == "clone" && !self.def(*id).methods.contains_key("clone") {
-            if trailer.is_some() {
-                self.error(call.span, "clone takes no block");
-            }
-            return self.clone_call(call, receiver, args);
         }
         if name.name == "raw"
             && matches!(kind, DefinedKind::Struct | DefinedKind::RawUnion)

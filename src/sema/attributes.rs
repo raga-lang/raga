@@ -9,7 +9,7 @@ use super::defined::{
 use super::functions::{Local, local};
 use super::scope::{Binding, Defines};
 use super::ty::{FnTy, ParamTy, Ty};
-use crate::ast::{Arg, Attribute, Decl, DeclKind, Expr, ExprKind, Ident, NodeId, Trailer, UnaryOp};
+use crate::ast::{Arg, Attribute, Decl, DeclKind, Expr, ExprKind, Ident, NodeId, Trailer};
 
 /// What an attribute carries and where it may be put.
 #[derive(Debug, Clone)]
@@ -453,7 +453,7 @@ impl Checker {
                 if let ExprKind::Name(n) = &callee.kind {
                     if matches!(
                         n.name.as_str(),
-                        "print" | "read_line" | "sleep" | "alloc" | "free"
+                        "print" | "read_line" | "sleep" | "alloc" | "free" | "addr"
                     ) && self.scopes.lookup(&n.name).is_none()
                     {
                         self.error(
@@ -487,13 +487,7 @@ impl Checker {
                     );
                 }
             }
-            ExprKind::Unary { op, operand } => {
-                if *op == UnaryOp::AddrOf {
-                    self.error(
-                        expr.span,
-                        "a pointer to a variable needs the running program: compile runs while the program is built",
-                    );
-                }
+            ExprKind::Unary { operand, .. } => {
                 self.needs_only_build_time(operand);
             }
             ExprKind::Binary { lhs, rhs, .. } => {
@@ -593,7 +587,7 @@ impl Checker {
                     self.error(
                         args[0].value.span,
                         format!(
-                            "{text} needs a pointer to the struct, &variable, but this is {pointer}"
+                            "{text} needs a pointer to the struct, addr(variable), but this is {pointer}"
                         ),
                     );
                 }

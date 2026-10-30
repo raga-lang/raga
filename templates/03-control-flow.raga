@@ -51,10 +51,10 @@ if (picnic) {
     }
 }
 
-// Strings are compared with equals: == on a String compares references, like on any non-primitive value.
+// Strings are compared with ==, which compares the text.
 const answer = "yes"
 let agreed = false
-if (answer.equals("yes")) { agreed = true }
+if (answer == "yes") { agreed = true }
 
 // if is a statement, so it gives no value and cannot be bound to a name.
 // const bad = if (picnic) { 1 } else { 2 }   // ERROR: if gives no value, assign inside the blocks instead
@@ -105,11 +105,10 @@ switch (letter) {
     default                        { }
 }
 
-// A String cannot be switched on: it is a non-primitive value, and non-primitive values are compared by reference.
-// Compare its text with equals in an if.
+// A String cannot be switched on: switch is for integers and chars. Compare its text with == in an if.
 const command = "go"
 let moving = false
-if (command.equals("go") || command.equals("run")) { moving = true } elif (command.equals("stop")) { moving = false }
+if (command == "go" || command == "run") { moving = true } elif (command == "stop") { moving = false }
 
 // Rules:
 //   - The subject is an integer type or a char. A float, a bool, a String, an enum, a tagged union or
@@ -125,7 +124,7 @@ if (command.equals("go") || command.equals("run")) { moving = true } elif (comma
 //     case (200) { }
 // }
 // switch (code) { case ("x") { } }   // ERROR: the subject is an i32, the case is a String
-// switch (command) { case ("go") { } }   // ERROR: a String cannot be switched on, use equals in an if
+// switch (command) { case ("go") { } }   // ERROR: a String cannot be switched on, use == in an if
 // switch (code) { case (tip) { } }           // ERROR: a case value must be a literal, tip is a variable
 // switch (shape) { case (Circle) { } }      // ERROR: shape is an enum or a tagged union (05-structs-enums-unions), write match
 
@@ -174,7 +173,7 @@ loop {
 // A loop that reads input until the user types quit.
 // loop {
 //     const line = read_line()
-//     if (line.equals("quit")) { break() }
+//     if (line == "quit") { break() }
 //     print(line)
 // }
 
@@ -184,7 +183,7 @@ loop {
 // ============================================================
 
 // for takes a collection in parentheses and a name between | | for each element. The block runs once per element.
-const scores = [70, 85, 90]
+let scores = [70, 85, 90]
 
 let score_total = 0
 for (scores) |score| {
@@ -232,7 +231,7 @@ for (word) |ch, at| {
 }
 
 // The loop name has the type of the elements: an i32 for a List<i32>, a String for a List<String>.
-// A primitive element is copied into the name, a non-primitive element is shared, like a function argument.
+// The name holds a copy of the element, like a function argument. To change a non-primitive element in place, use at(i).
 const names = ["ann", "bob"]
 for (names) |name| {
     print(name.upper())
@@ -421,7 +420,7 @@ for (range(1, 4)) |row| {
 
 // A for loop walks the collection it started with. Replacing an element with set is fine,
 // the length does not change.
-const prices = [1, 2, 3]
+let prices = [1, 2, 3]
 for (range(0, prices.len())) |at| {
     prices.set(at, prices.get(at) * 10)   // 10, 20, 30
 }
@@ -430,8 +429,8 @@ for (range(0, prices.len())) |at| {
 // is an error at run time, the loop would lose its place.
 // for (scores) |score| { scores.push(1) }    // ERROR at run time: the List changed size during the loop
 
-// To grow or shrink while looping, loop over a clone.
-const copy = scores.clone()
+// To grow or shrink while looping, loop over a copy.
+const copy = scores
 for (copy) |score| {
     scores.push(score)                    // fine: the loop is over copy, the changes go to scores
 }
@@ -451,7 +450,7 @@ for (scores) |score| {
 }
 
 // Build a new collection from an old one.
-const halved = List<i32>()
+let halved = List<i32>()
 for (scores) |score| {
     halved.push(score / 2)
 }

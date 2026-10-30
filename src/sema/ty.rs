@@ -186,15 +186,14 @@ pub const OPTIONAL: TypeId = TypeId(0);
 pub const RESULT: TypeId = TypeId(1);
 pub const IERROR: TypeId = TypeId(6);
 pub const ERROR: TypeId = TypeId(7);
-pub const WEAK: TypeId = TypeId(8);
-pub const KIND: TypeId = TypeId(9);
-pub const OP: TypeId = TypeId(10);
-pub const FIELD_INFO: TypeId = TypeId(11);
-pub const VARIANT_INFO: TypeId = TypeId(12);
-pub const ATTRIBUTE_INFO: TypeId = TypeId(13);
-pub const BINDING_INFO: TypeId = TypeId(14);
-pub const TYPE_INFO: TypeId = TypeId(15);
-pub const ANY: TypeId = TypeId(16);
+pub const KIND: TypeId = TypeId(8);
+pub const OP: TypeId = TypeId(9);
+pub const FIELD_INFO: TypeId = TypeId(10);
+pub const VARIANT_INFO: TypeId = TypeId(11);
+pub const ATTRIBUTE_INFO: TypeId = TypeId(12);
+pub const BINDING_INFO: TypeId = TypeId(13);
+pub const TYPE_INFO: TypeId = TypeId(14);
+pub const ANY: TypeId = TypeId(15);
 
 /// What a defined type is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -269,6 +268,24 @@ impl Ty {
         self.is_integer() || self.is_float()
     }
 
+    /// Does `==` work on this type without the program declaring it? Primitives, String and enum members.
+    pub fn has_equality(&self) -> bool {
+        matches!(
+            self,
+            Ty::Int(_)
+                | Ty::Float(_)
+                | Ty::Bool
+                | Ty::Char
+                | Ty::String
+                | Ty::Ptr(_)
+                | Ty::Error
+                | Ty::Defined {
+                    kind: DefinedKind::Enum,
+                    ..
+                }
+        )
+    }
+
     /// Can a value of this type be the key of a Map? A primitive value or a String: they are found by their value.
     pub fn is_key(&self) -> bool {
         matches!(
@@ -280,6 +297,18 @@ impl Ty {
     /// Can a value of type `other` be used where this type is wanted? Types must be equal, except that a type with an
     /// error in it fits everything.
     pub fn accepts(&self, other: &Ty) -> bool {
+        self.accepts_as(other, false)
+    }
+
+    /// Like `accepts`, but a class may stand for a class it extends: for the object a method or an operator is called on,
+    /// which is the object itself and not a copy of it.
+    pub fn accepts_sub(&self, other: &Ty) -> bool {
+        self.accepts_as(other, true)
+    }
+
+    /// `behind_pointer` is true for what a `ptr<T>` points to: only there can a class stand for a class it extends or an
+    /// interface it implements. A value of the subclass stored as its base class would lose its extra fields.
+    fn accepts_as(&self, other: &Ty, behind_pointer: bool) -> bool {
         match (self, other) {
             (Ty::Error, _) | (_, Ty::Error) => true,
             (Ty::Array(a), Ty::Array(b))
@@ -299,14 +328,14 @@ impl Ty {
             }
             // a class can be used where a class it extends or an interface it implements is wanted
             (Ty::Defined { id: a, .. }, Ty::Defined { id: b, supers, .. })
-                if a != b && supers.contains(a) =>
+                if behind_pointer && a != b && supers.contains(a) =>
             {
                 true
             }
             (Ty::Defined { id: a, args: x, .. }, Ty::Defined { id: b, args: y, .. }) => {
                 a == b && x.len() == y.len() && x.iter().zip(y).all(|(p, q)| p.accepts(q))
             }
-            (Ty::Ptr(a), Ty::Ptr(b)) => a.accepts(b),
+            (Ty::Ptr(a), Ty::Ptr(b)) => a.accepts_as(b, true),
             _ => self == other,
         }
     }

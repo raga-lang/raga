@@ -3,7 +3,8 @@
 // points to the template that explains it.
 //
 // Naming (01-basics): built-in functions and attributes are lower_snake_case, built-in methods are lowerCamelCase,
-// the fields of built-in structs are lower_snake_case.
+// the fields of built-in structs are lower_snake_case. The memory functions follow C and are snake_case too, also
+// Type.from_raw (08-memory).
 // A function is called with parentheses: len(items), read_line(), and a call with one simple operand may leave them out (04-functions
 // section 12). A method is called on a value: items.len().
 // A signature is written as a function head: name(Type parameter, ...) ReturnType.
@@ -46,7 +47,6 @@
 //   (1, 2.5)                       Tuple<i32, f64>                                         (02-data-structures)
 //   Set(1, 2, 3)                   Set<i32>, no literal                                    (02-data-structures)
 //   Map("a", 1)                    Map<String, i32>, no literal, arguments are key, value, key, value (02-data-structures)
-//   Weak(value)                    Weak<T>, does not keep the value alive                  (08-memory)
 //   Any(value)                     Any, holds a value of any type                          (09-attributes-and-reflection)
 //   Module                         the value of import(path): its exported names are reached with a dot (10-modules)
 //   Error(message = ..., code = ...)   Error                                               (06-errors)
@@ -59,8 +59,7 @@
 // 3. METHODS OF EVERY NON-PRIMITIVE VALUE
 // ============================================================
 
-//   value.clone()                         a separate copy, one level deep                              (01-basics, 02-data-structures)
-// == on a non-primitive value compares references. No other method compares contents, except String.equals.
+// There is no clone and no equals: assigning a value copies it, and == works on a String (by its text) and on enum members.
 
 
 // ============================================================
@@ -71,7 +70,6 @@
 //   text.len() usize                              the number of characters                             (01-basics)
 //   text.upper() String                           a new String in upper case                           (01-basics)
 //   text.contains(String part) bool               true when part is inside text                        (01-basics)
-//   text.equals(String other) bool                true when both have the same text                    (01-basics)
 //   text.split(String separator) List<String>     the parts between the separator, new Strings         (01-basics)
 //   text.trim() String                            a new String without the spaces at both ends         (01-basics)
 //   text.replace(String from, String to) String   a new String where every match of from became to     (01-basics)
@@ -117,7 +115,7 @@
 //   map.get(K key) V                          the value of a key, throws when the key is not there          (02-data-structures)
 //   map.has(K key) bool                       true when the key is there                                    (02-data-structures)
 //   map.remove(K key)                         removes a key and its value                                   (named in 08-memory)
-// The keys of a Map are hashed, and a key is a primitive value or a String. A String key is found by its text, with String.equals, and a primitive key by its value. Set values and contains use ==.
+// The keys of a Map are hashed, and a key is a primitive value or a String. A String key is found by its text, and a primitive key by its value. Set values and contains use ==.
 
 
 // ============================================================
@@ -174,11 +172,9 @@
 
 
 // ============================================================
-// 9. WEAK AND ANY
+// 9. ANY
 // ============================================================
 
-//   weak.get() Optional<T>                Some while the value is alive, None after it was freed        (08-memory)
-//   weak.alive() bool                     true while the value is alive                                 (08-memory)
 //   any.typeName() String                 the name of the type inside, known when the program runs      (09-attributes-and-reflection)
 //   any.is<T>() bool                      true when the type inside is T                                (09-attributes-and-reflection)
 //   any.as<T>() Optional<T>               Some when the type inside is T, None otherwise                (09-attributes-and-reflection)
@@ -188,11 +184,11 @@
 // 10. POINTERS AND C LAYOUT
 // ============================================================
 
-//   &x                                    a ptr<T> to a variable                                        (08-memory)
+//   addr(x)                               a ptr<T> to a variable                                        (08-memory)
 //   p.*                                   the value that p points to, to read or to write               (08-memory)
 //   p.at(usize i) ptr<T>                  the pointer to element i, without any check of the position   (08-memory)
 //   value.raw() ptr<u8>                   where the fields of a struct or union are, in C layout        (05-structs-enums-unions)
-//   Type.fromRaw(ptr<u8> p) Type          a new value copied from an address in C layout                (05-structs-enums-unions)
+//   Type.from_raw(ptr<u8> p) Type         a new value copied from an address in C layout                (05-structs-enums-unions)
 
 
 // ============================================================

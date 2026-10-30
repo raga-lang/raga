@@ -19,6 +19,8 @@ pub(super) struct FnCtx {
     pub(super) returns: Vec<(Ty, Span)>,
     /// The first symbol the function declares: a name below this one belongs to the code around it.
     pub(super) first_symbol: usize,
+    /// True once the body uses a variable of a function around it.
+    pub(super) captures: bool,
 }
 
 /// A name and the type it has inside a function: the parameters.
@@ -223,6 +225,7 @@ impl Checker {
             declared: declared.clone(),
             returns: Vec::new(),
             first_symbol,
+            captures: false,
         });
         // a break or continue in a function belongs to a loop of the function
         let outer_loops = std::mem::replace(&mut self.loops, 0);
@@ -231,6 +234,7 @@ impl Checker {
         self.loops = outer_loops;
         self.in_finally = outer_finally;
         let ctx = self.fns.pop().expect("pushed above");
+        self.last_function_captures = ctx.captures;
         self.scopes.pop();
 
         match declared {
@@ -306,8 +310,10 @@ impl Checker {
             [] => (Ty::Void, call.span),
             [arg] => {
                 let wanted = declared.as_ref().filter(|ret| **ret != Ty::Void);
+                self.last_function_captures = false;
                 let got = self.expr(&arg.value, wanted);
                 self.check_returned_address(&arg.value);
+                self.check_returned_closure(&arg.value);
                 (got, arg.value.span)
             }
             _ => {

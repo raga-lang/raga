@@ -8,7 +8,7 @@ use crate::ast::{Attribute, BinaryOp, ExprKind, UnaryOp};
 use crate::span::Span;
 
 /// The types that come with the language take the first numbers; a type you declare comes after them.
-pub(super) const BUILTIN_TYPES: u32 = 17;
+pub(super) const BUILTIN_TYPES: u32 = 16;
 
 /// One operator that the program declared: the types of its operands, in order, and what it gives back.
 #[derive(Debug, Clone)]
@@ -155,7 +155,7 @@ impl Checker {
             let why = if matches!(name.name.as_str(), "And" | "Or") {
                 "&& and || cannot be overloaded, they must stop early"
             } else if name.name == "Set" || name.name == "AddrOf" || name.name == "Deref" {
-                "= & and .* are part of the language"
+                "= addr and .* are part of the language"
             } else {
                 "see the members of Op"
             };
@@ -170,7 +170,11 @@ impl Checker {
         let mut best: Option<(usize, &OperatorDef)> = None;
         for def in self.operators.iter().filter(|o| o.op == op) {
             if def.params.len() != operands.len()
-                || !def.params.iter().zip(operands).all(|(p, o)| p.accepts(o))
+                || !def
+                    .params
+                    .iter()
+                    .zip(operands)
+                    .all(|(p, o)| p.accepts_sub(o))
             {
                 continue;
             }
@@ -228,7 +232,6 @@ impl Checker {
             UnaryOp::Neg => ("Neg", "-"),
             UnaryOp::Not => ("Not", "!"),
             UnaryOp::BitNot => ("BitNot", "~"),
-            UnaryOp::AddrOf => return None,
         };
         match self.find_operator(name, std::slice::from_ref(operand)) {
             Some(ret) => Some(ret),

@@ -124,7 +124,7 @@ const old_level = 1
 // unless it is named between the pipes. The types come from the declaration of the attribute: target is a
 // BindingInfo for a function or a variable, a FieldInfo for a field, a TypeInfo for a type (section 4).
 // This is how to keep things in one place: every use adds itself to a table that you own.
-const routes = Map<String, BindingInfo>()           // const protects the name, the Map can still change
+let routes = Map<String, BindingInfo>()           // const protects the name, the Map can still change
 
 const route = attribute(String path, String verb = "get") |target, path, verb| {
     routes.set(path, target)                         // runs once for each [route(...)]
@@ -251,7 +251,7 @@ const sixty_four = compile(square(8))      // 64, computed by the compiler, the 
 // Any function can run at compile time, as long as everything it uses is known at compile time.
 // That includes loops, if, match, and calls to other functions.
 const squares = function(i32 count) List<i32> {
-    const result = List<i32>()
+    let result = List<i32>()
     for (range(1, count)) |i| {
         result.push(i * i)
     }
@@ -340,7 +340,7 @@ const describe_fields = function() String {
 // Reading attributes:
 //   info.attributes                       every attribute on the type
 //   AttributeInfo has name and arguments
-// attributes_of(thing, name) takes the name as a String and gives the attributes whose name equals it (compared with String.equals) that sit on a declaration, as an Array<AttributeInfo>.
+// attributes_of(thing, name) takes the name as a String and gives the attributes whose name equals it (compared with ==) that sit on a declaration, as an Array<AttributeInfo>.
 // The array is empty when there is none, and has more than one entry when the attribute is written several times.
 // thing is a function, a type, a TypeInfo, a BindingInfo or a FieldInfo. A function or a type named in the code is allowed
 // here, although functions cannot otherwise be passed around, because the lookup is made while the program is built.
@@ -380,11 +380,11 @@ const as_text = boxed.as<String>()         // None, it holds an i32
 const as_number = boxed.as<i32>()          // Some, with value 42
 
 // A field is read and written by its name as a String through a pointer to the struct.
-// The name is a String, and it is matched with the names of the fields using String.equals, so the text decides.
+// The name is a String, and it is matched with the names of the fields with ==, so the text decides.
 //   get_field(pointer, name)          Optional<Any>: None when there is no such field
 //   set_field(pointer, name, value)   Result<bool, String>: Ok(true), or Err with the reason
 let account = Account(id = 1, age = 30, name = "ann")
-const account_pointer = &account
+const account_pointer = addr(account)
 
 match (get_field(account_pointer, "age")) {
     case (Some) |s| { print(s.value.as<i32>().unwrap()) }    // 30
@@ -396,7 +396,7 @@ const set_bad = set_field(account_pointer, "age", Any("x"))   // Err: age is an 
 const set_missing = set_field(account_pointer, "weight", Any(1))    // Err: Account has no field weight
 
 // The pointer is what lets dynamic access change the struct itself. A const struct has no pointer
-// (&const_name is an error), so it cannot be changed this way.
+// (addr(const_name) is an error), so it cannot be changed this way.
 
 // A binding found by reflection, such as the target a build hook stored in a table, can be run. invoke checks the number
 // and the types of the arguments when it runs and gives a Result. It goes through the call hook of the function, if
@@ -494,7 +494,7 @@ const Vector = class {
     f64 x = 0.0
     f64 y = 0.0
 
-    [operator(Op.Add), method(Inheritance.Virtual)]
+    [operator(Op.Add)]
     const add = method(Vector other) Vector {
         return(Vector(x = this.x + other.x, y = this.y + other.y))
     }
@@ -504,7 +504,7 @@ const Vector = class {
         return(Vector(x = -this.x, y = -this.y))
     }
 
-    [operator(Op.Eq)]
+    [operator(Op.Eq), method(Inheritance.Virtual)]
     const same = method(Vector other) bool {
         return(this.x == other.x && this.y == other.y)
     }
@@ -513,11 +513,11 @@ const Vector = class {
 const Vector3 = class {
     f64 z = 0.0
 
-    [operator(Op.Add), method(Inheritance.Override)]
-    const add = method(Vector other) Vector {
+    [operator(Op.Eq), method(Inheritance.Override)]
+    const same = method(Vector other) bool {
         match (other.as<Vector3>()) {
-            case (Some) |v| { return(Vector3(x = this.x + v.value.x, y = this.y + v.value.y, z = this.z + v.value.z)) }
-            case (None)     { return(Vector3(x = this.x + other.x, y = this.y + other.y, z = this.z)) }
+            case (Some) |v| { return(this.x == v.value.x && this.y == v.value.y && this.z == v.value.z) }
+            case (None)     { return(false) }
         }
     }
 } extends(Vector)
@@ -526,28 +526,29 @@ const va = Vector(x = 1.0, y = 2.0)
 const vb = Vector(x = 3.0, y = 4.0)
 const vsum = va + vb                              // calls va.add(vb): Vector(x = 4.0, y = 6.0)
 const vneg = -va                                  // calls va.negate()
-const vequal = va == vb                           // calls va.same(vb): false, not a comparison of references
-const v3 = Vector3(x = 1.0, y = 1.0, z = 1.0)
-const v3sum = v3 + vb                             // the left operand is a Vector3, so its own add runs
-Vector v3_as_vector = v3
-const through_base = v3_as_vector + vb            // add is virtual: the class of the value decides, so Vector3's add runs
+const vequal = va == vb                           // calls va.same(vb): false
+let v3 = Vector3(x = 1.0, y = 1.0, z = 1.0)
+const v3_other = Vector3(x = 1.0, y = 1.0, z = 2.0)
+const v3_same = v3 == v3_other                    // the left operand is a Vector3, so its own same runs: false, z differs
+ptr<Vector> v3_as_vector = addr(v3)               // a Vector3 is seen as a Vector only behind a pointer
+const through_base = v3_as_vector.* == vb         // same is virtual: the class of the object decides, so Vector3's same runs
 const inherited = -v3                             // negate was not replaced, so the one of Vector runs
 
 // Rules for a class:
 //   - A binary operator is a method with one parameter, the right operand. A unary operator is a method with none.
 //   - The method is chosen by the type of the left operand, like any method that is not virtual. Mark it virtual, and the class of
-//     the value decides, so a base type holding a subclass runs the replaced operator.
+//     the object decides, so a base type that points at a subclass runs the replaced operator.
 //   - A class may declare == with Op.Eq. That makes == compare what the method compares, as it does for a struct.
 //   - Operators are inherited and replaced like other methods, and a final or private operator method is final or private.
 // const Bad = class { [operator(Op.Add)] const add = method() Vector { return(Vector()) } }    // ERROR: Op.Add is binary: a method takes one parameter, the right operand
 // Rules:
 //   - At least one parameter must be a type you declared, so i32 + i32 can never be changed.
 //   - The number of parameters must fit the operator: two for a binary one, one for a unary one.
-//   - && and || cannot be overloaded, they must stop early. Neither can = or the address-of and
-//     dereference operators & and .*, they are part of the language.
+//   - && and || cannot be overloaded, they must stop early. Neither can = or addr and the
+//     dereference operator .*, they are part of the language.
 //   - Two functions may share an operator when their parameter types differ. This is the only overloading in Raga.
 //   - Nothing is converted for you: Vec * 2 is an error because 2 is an i32 and scale_vec takes an f64.
-//   - On a non-primitive value ==, as always, compares references. An == operator is declared only for your structs, unions and classes.
+//   - On a non-primitive value == is not defined, except for String and enum members. An == operator is declared only for your structs, unions and classes.
 // [operator(Op.Add)] const bad = function(i32 a, i32 b) i32 { return(a + b) }    // ERROR: no parameter is a type you declared
 // [operator(Op.Add)] const bad = function(Vec a) Vec { return(a) }               // ERROR: + is binary, two parameters
 // [operator(Op.And)] const bad = function(Vec a, Vec b) bool { return(true) }    // ERROR: Op has no And, && cannot be overloaded

@@ -42,17 +42,38 @@ fn comparison(item: Ty) -> Ty {
     })
 }
 
+/// Does the method change the collection it is called on? `at` counts: the pointer it gives can change the element.
+pub(super) fn changes_receiver(receiver: &Ty, name: &str) -> bool {
+    match receiver {
+        Ty::Array(_) | Ty::Tuple(_) => matches!(name, "set" | "at"),
+        Ty::List(_) => matches!(
+            name,
+            "set"
+                | "at"
+                | "push"
+                | "unshift"
+                | "pop"
+                | "shift"
+                | "insert"
+                | "sort"
+                | "remove"
+                | "reverse"
+        ),
+        Ty::Set(_) => matches!(name, "add" | "remove"),
+        Ty::Map(..) => matches!(name, "set" | "remove"),
+        _ => false,
+    }
+}
+
 /// The method `name` of a collection, with the types of its parameters and result worked out from the receiver.
 fn collection_method(receiver: &Ty, name: &str) -> Option<Method> {
     let index = Ty::USIZE;
-    if name == "clone" {
-        return method(vec![], receiver.clone());
-    }
     match receiver {
         Ty::Array(item) => {
             let item = (**item).clone();
             match name {
                 "get" => method(vec![index], item),
+                "at" => method(vec![index], Ty::Ptr(Box::new(item))),
                 "set" => method(vec![index, item], Ty::Void),
                 "len" => method(vec![], Ty::USIZE),
                 "contains" => method(vec![item], Ty::Bool),
@@ -63,6 +84,7 @@ fn collection_method(receiver: &Ty, name: &str) -> Option<Method> {
             let item = (**item).clone();
             match name {
                 "get" => method(vec![index], item),
+                "at" => method(vec![index], Ty::Ptr(Box::new(item))),
                 "set" => method(vec![index, item], Ty::Void),
                 "len" => method(vec![], Ty::USIZE),
                 "contains" => method(vec![item], Ty::Bool),
@@ -109,7 +131,18 @@ impl Checker {
         match (name, args.as_slice()) {
             ("Array", [item]) => Ty::Array(Box::new(item.clone())),
             ("List", [item]) => Ty::List(Box::new(item.clone())),
-            ("Set", [item]) => Ty::Set(Box::new(item.clone())),
+            ("Set", [item]) => {
+                if !item.has_equality() {
+                    self.error(
+                        span,
+                        format!(
+                            "a Set holds values that can be compared with ==, but {item} cannot"
+                        ),
+                    );
+                    return Ty::Error;
+                }
+                Ty::Set(Box::new(item.clone()))
+            }
             ("Array" | "List" | "Set", _) => {
                 self.error(span, format!("`{name}` takes one type: {name}<T>"));
                 Ty::Error
@@ -303,13 +336,27 @@ impl Checker {
         trailer: Option<&Trailer>,
     ) -> Ty {
         let label = name.name.as_str();
+        if label == "contains"
+            && let Ty::Array(item) | Ty::List(item) = receiver
+            && !item.has_equality()
+        {
+            self.error(
+                name.span,
+                format!("contains looks for a value with ==, which {item} does not have"),
+            );
+        }
         let Some(Method { params, ret }) = collection_method(receiver, label) else {
             let hint = match (receiver, label) {
                 (
                     Ty::Array(_),
                     "push" | "pop" | "shift" | "unshift" | "insert" | "remove" | "reverse",
                 ) => ": an Array has a fixed size, use a List",
-                (_, "equals") => ": == compares references and there is no equals for this type",
+                (_, "equals") => {
+                    ": == is not defined for this type, compare the parts you care about"
+                }
+                (_, "clone") => {
+                    ": assignment is the copy, `let copy = value`, and a pointer shares"
+                }
                 _ => "",
             };
             self.error(
@@ -361,11 +408,10 @@ impl Checker {
         let wanted = match label {
             "get" => 1,
             "set" => 2,
-            "clone" => 0,
             _ => {
                 self.error(
                     name.span,
-                    format!("a Tuple has no method `{label}`, only get, set and clone"),
+                    format!("a Tuple has no method `{label}`, only get and set"),
                 );
                 self.check_arguments(args);
                 return Ty::Error;

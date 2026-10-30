@@ -104,7 +104,6 @@ impl Display for Expr {
                     UnaryOp::Neg => "neg",
                     UnaryOp::Not => "not",
                     UnaryOp::BitNot => "bitnot",
-                    UnaryOp::AddrOf => "addr",
                 };
                 write!(f, "({name} {operand})")
             }

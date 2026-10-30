@@ -1,19 +1,32 @@
-//! Pointers, `Weak` and manual memory (08-memory): `&variable`, `p.*`, `null`, `p.at(i)`, `alloc`, `free`, `sizeof`,
-//! `alignof`, `raw()` and `Weak(value)`.
+//! Pointers and manual memory (08-memory): `addr(variable)`, `p.*`, `null`, `p.at(i)`, `alloc`, `free`, `sizeof`,
+//! `alignof` and `raw()`.
 
 use super::checker::Checker;
-use super::defined::WEAK;
 use super::scope::Binding;
-use super::ty::{DefinedKind, IntTy, Ty};
-use crate::ast::{Arg, Assign, Expr, ExprKind, Ident, UnaryOp};
+use super::ty::{IntTy, Ty};
+use crate::ast::{Arg, Assign, Expr, ExprKind, Ident};
 use crate::span::Span;
 
-/// A primitive value lives in the name that holds it, so it has no reference to count and nothing to point at weakly.
+/// A primitive value is a plain number, flag or address: the only kind `alloc` can make room for.
 fn is_primitive(ty: &Ty) -> bool {
     matches!(
         ty,
         Ty::Int(_) | Ty::Float(_) | Ty::Bool | Ty::Char | Ty::Ptr(_)
     )
+}
+
+/// `addr(name)`: the variable a call to addr names, when the call is one.
+fn addr_operand(expr: &Expr) -> Option<&Expr> {
+    let ExprKind::Call { callee, args, .. } = &expr.kind else {
+        return None;
+    };
+    let ExprKind::Name(name) = &callee.kind else {
+        return None;
+    };
+    match args.as_slice() {
+        [arg] if name.name == "addr" => Some(&arg.value),
+        _ => None,
+    }
 }
 
 impl Checker {
@@ -41,7 +54,7 @@ impl Checker {
         }
     }
 
-    /// `&name`: the address of a variable. A constant, a parameter, a function and a temporary value have none to give.
+    /// `addr(name)`: the address of a variable. A constant, a parameter, a function and a temporary value have none to give.
     pub(super) fn addr_of(&mut self, expr: &Expr, operand: &Expr, expected: Option<&Ty>) -> Ty {
         let hint = match expected {
             Some(Ty::Ptr(pointee)) => Some((**pointee).clone()),
@@ -93,11 +106,7 @@ impl Checker {
 
     /// `return &local` hands out an address that is gone as soon as the function ends.
     pub(super) fn check_returned_address(&mut self, value: &Expr) {
-        let ExprKind::Unary {
-            op: UnaryOp::AddrOf,
-            operand,
-        } = &value.kind
-        else {
+        let Some(operand) = addr_operand(value) else {
             return;
         };
         let ExprKind::Name(name) = &operand.kind else {
@@ -110,6 +119,41 @@ impl Checker {
             self.error(
                 value.span,
                 "the address of a local variable cannot be returned: the variable is gone when the function ends",
+            );
+        }
+    }
+
+    /// A name of a variable of a function around the code being checked is a capture: the function being checked
+    /// uses the variable itself, so it must not outlive it.
+    pub(super) fn note_capture(&mut self, symbol: super::scope::SymbolId) {
+        let (Some(outermost), Some(innermost)) = (self.fns.first(), self.fns.last()) else {
+            return;
+        };
+        let index = symbol.0 as usize;
+        if index >= outermost.first_symbol
+            && index < innermost.first_symbol
+            && let Some(ctx) = self.fns.last_mut()
+        {
+            ctx.captures = true;
+        }
+    }
+
+    /// `return next` where `next` uses the variables of the function that returns it: they are gone when it ends.
+    pub(super) fn check_returned_closure(&mut self, value: &Expr) {
+        let captures = match &value.kind {
+            ExprKind::Name(name) => self
+                .scopes
+                .lookup(&name.name)
+                .is_some_and(|symbol| self.closures.contains(&symbol)),
+            ExprKind::Call { callee, .. } if matches!(&callee.kind, ExprKind::Name(n) if n.name == "function") => {
+                self.last_function_captures
+            }
+            _ => false,
+        };
+        if captures {
+            self.error(
+                value.span,
+                "this function uses variables of the function that returns it, and they are gone when it ends: keep the state in a struct, or in memory from alloc",
             );
         }
     }
@@ -190,6 +234,9 @@ impl Checker {
         if text == "free" {
             return self.free_call(call, type_args, args);
         }
+        if text == "addr" {
+            return self.addr_call(call, type_args, args);
+        }
         let [written] = type_args else {
             self.error(
                 call.span,
@@ -256,6 +303,19 @@ impl Checker {
         Ty::USIZE
     }
 
+    /// `addr(name)`: the pointer to a variable.
+    fn addr_call(&mut self, call: &Expr, type_args: &[crate::ast::Type], args: &[Arg]) -> Ty {
+        if !type_args.is_empty() {
+            self.error(call.span, "addr takes no type: addr(variable)");
+        }
+        let [arg] = args else {
+            self.error(call.span, "addr takes one variable: addr(variable)");
+            self.check_arguments(args);
+            return Ty::Error;
+        };
+        self.addr_of(call, &arg.value, None)
+    }
+
     fn free_call(&mut self, call: &Expr, type_args: &[crate::ast::Type], args: &[Arg]) -> Ty {
         if !type_args.is_empty() {
             self.error(call.span, "free takes no type: free(p)");
@@ -265,11 +325,7 @@ impl Checker {
             self.check_arguments(args);
             return Ty::Void;
         };
-        if let ExprKind::Unary {
-            op: UnaryOp::AddrOf,
-            operand,
-        } = &arg.value.kind
-        {
+        if let Some(operand) = addr_operand(&arg.value) {
             self.expr(&arg.value, None);
             let what = match &operand.kind {
                 ExprKind::Name(n) => format!("`{}` is a variable", n.name),
@@ -292,7 +348,7 @@ impl Checker {
         Ty::Void
     }
 
-    /// `Spot.fromRaw(p)`: a new struct copied from the bytes a `ptr<u8>` points to.
+    /// `Spot.from_raw(p)`: a new struct copied from the bytes a `ptr<u8>` points to.
     pub(super) fn static_from_raw(&mut self, call: &Expr, meta: &Ty, args: &[Arg]) -> Ty {
         let Ty::TypeValue {
             id, args: targs, ..
@@ -309,52 +365,10 @@ impl Checker {
                 }
             }
             _ => {
-                self.error(call.span, "fromRaw takes the pointer: Type.fromRaw(p)");
+                self.error(call.span, "from_raw takes the pointer: Type.from_raw(p)");
                 self.check_arguments(args);
             }
         }
         self.defined_ty(*id, targs.clone())
-    }
-
-    /// `Weak(value)`: a handle that refers to a non-primitive value without keeping it alive.
-    pub(super) fn construct_weak(
-        &mut self,
-        call: &Expr,
-        args: &[Arg],
-        expected: Option<&Ty>,
-    ) -> Ty {
-        let [arg] = args else {
-            self.error(call.span, "Weak takes the value it refers to: Weak(value)");
-            self.check_arguments(args);
-            return Ty::Error;
-        };
-        let hint = match expected {
-            Some(Ty::Defined { id, args, .. }) if *id == WEAK => args.first().cloned(),
-            _ => None,
-        };
-        let got = self.expr(&arg.value, hint.as_ref());
-        if got.is_error() {
-            return Ty::Error;
-        }
-        if is_primitive(&got) || matches!(got, Ty::Void) {
-            self.error(
-                arg.value.span,
-                format!("{got} is a primitive value, not a non-primitive one: there is nothing to refer to weakly"),
-            );
-            return Ty::Error;
-        }
-        if let Ty::Defined {
-            kind: DefinedKind::Enum,
-            ..
-        } = got
-        {
-            // an enum member is a number
-            self.error(
-                arg.value.span,
-                "an enum member is a number, there is nothing to refer to weakly",
-            );
-            return Ty::Error;
-        }
-        self.defined_ty(WEAK, vec![got])
     }
 }

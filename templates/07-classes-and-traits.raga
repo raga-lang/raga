@@ -2,8 +2,8 @@
 // Overloaded methods, accessors (get and set), polymorphism, type tests, generic classes
 //
 // A struct (05-structs-enums-unions) is plain data with no inheritance.
-// A class is a non-primitive value that can extend one other class, implement interfaces, use traits, and be used where its
-// base type or an interface is expected.
+// A class is a non-primitive value that can extend one other class, implement interfaces, use traits, and be used through
+// a pointer to its base type or to an interface.
 //
 // A class is declared like every other construct: attributes on the line above, then const Name = head, a body in
 // braces, and the clauses that follow the closing brace on the same line:
@@ -17,8 +17,8 @@
 //   const speak = method() String { ... }              a method: a binding whose head is method, like function
 //   const marks = get { ... } set |value| { ... }      an accessor: a binding whose head is get, then a set clause
 //
-// It uses structs and methods from 05-structs-enums-unions, and Optional and errors from 06-errors. Attributes (09-attributes-and-reflection), non-primitive values and
-// reference counting (08-memory) and Any (09-attributes-and-reflection) are explained in the templates that come after this one.
+// It uses structs and methods from 05-structs-enums-unions, and Optional and errors from 06-errors. Attributes (09-attributes-and-reflection), values, pointers and
+// ownership (08-memory) and Any (09-attributes-and-reflection) are explained in the templates that come after this one.
 
 
 // ============================================================
@@ -49,26 +49,25 @@ const Person = class {
     }
 
     const birthday = method() {
-        this.age = this.age + 1               // a method may change a field, also on a const name: the object is shared
+        this.age = this.age + 1               // a method may change a field: it changes the object it was called on
     }
 }
 
 // A class is created like a struct, by naming fields. A field that is left out takes its value.
-const ann = Person(name = "ann", age = 30)
+let ann = Person(name = "ann", age = 30)
 const greeting = ann.greet()
-ann.birthday()                                // ann.age is 31, even though ann is const
+ann.birthday()                                // ann.age is 31. ann is a let: a method that changes the object needs one
 
 // A class value is a non-primitive value, like a struct. Everything in 08-memory applies to it:
-//   - a name holds a reference, an assignment shares the same object
-//   - const protects the name, not the object
-//   - it is reference counted and freed when nothing refers to it
-//   - == asks whether two names refer to the same object
-//   - clone makes a separate copy: every class has a clone method, generated like the one of a struct
-const same = ann
-same.name = "anna"                    // ann.name changes too: one object, two names
-const twin = ann.clone()                      // a separate Person
-const is_same = ann == same                    // true
-const is_twin = ann == twin                    // false
+//   - a name owns its object, an assignment copies the object with all its fields
+//   - const protects the whole object, so a method that changes it is called on a let
+//   - the object is freed at the end of the block of its name, and its destructor runs then
+//   - == does not exist for a class, unless the class declares it (09-attributes-and-reflection section 6)
+//   - there is no clone: the assignment is the copy
+//   - to use one object through two names, or through a base class or an interface, use a pointer (section 9)
+let same = ann
+same.name = "anna"                    // ann.name is unchanged: same is its own Person
+const twin_age = ann.age == same.age  // compare the parts yourself
 
 // Class names are Capitalized, like every type name.
 
@@ -270,7 +269,7 @@ const grad = Graduate(name = "gia", degree = "math")
 
 // A method named destructor runs when the object is freed. It is for giving back what the object holds:
 // closing a file, releasing memory from alloc (08-memory section 9).
-// Objects are reference counted, so this happens at a known moment: when the last reference goes (08-memory section 8).
+// An object is freed at a known moment: the end of the block of the name that owns it (08-memory section 6).
 const Connection = class {
     String host = ""
 
@@ -281,15 +280,15 @@ const Connection = class {
 
 {
     const link = Connection(host = "db1")
-}                                                 // link leaves its block, the count reaches 0, destructor runs and prints
+}                                                 // link leaves its block, the object is freed, destructor runs and prints
 
 // Rules:
 //   - A destructor is always named destructor. It has no parameters, no return type and no attributes, and a class has
 //     at most one. It has one version only, since it has no parameters to tell versions apart. It cannot be called by hand.
-//   - It runs at the moment the count reaches 0, and the destructor of the derived class runs first, then the one of the base.
+//   - It runs at the moment the object is freed, and the destructor of the derived class runs first, then the one of the base.
 //   - It must not throw. An Error thrown inside a destructor ends the program.
 //   - The object is being freed, so do not keep this anywhere from inside a destructor.
-//   - Objects in a cycle of strong references are never freed, so their destructors never run: use Weak (08-memory section 8).
+//   - A copy is a separate object with its own destructor call, so a class that owns a resource should be passed by pointer.
 //   - A struct has no destructor. Only classes do.
 // link.destructor()                              // ERROR: a destructor runs only when the object is freed
 
@@ -427,7 +426,7 @@ const Student = class {
 } extends(People)
 
 // A subclass is created with the fields of every class it extends, by name.
-const bob = Student(name = "bob", rollNumber = 7)
+let bob = Student(name = "bob", rollNumber = 7)
 const hello = bob.greet()                     // "hello, I am bob, a student"
 const bob_role = bob.role()                    // "student"
 
@@ -591,33 +590,39 @@ const host_hello = host.hello()                          // "welcome, friend"
 // 9. POLYMORPHISM: ONE TYPE, MANY CLASSES
 // ============================================================
 
-// A value of a class can be used where its base class or any interface it implements is expected.
-People someone = bob                              // a Student where a People is expected
-ISpeak speaker = Dog(name = "rex")        // a Dog where an ISpeak is expected
+// An object is a value and keeps all its fields. A Student stored in a variable of type People would lose rollNumber, and a
+// variable of an interface type has no size to give it. So a class is used through its base class or an interface only
+// behind a pointer: a ptr<People> can point at a Student, and a ptr<ISpeak> at a Dog.
+// People plain = bob                             // ERROR: a Student stored as a People would lose its extra fields
+let rex = Dog(name = "rex")
+ptr<People> someone = addr(bob)                   // points at a Student, seen as a People
+ptr<ISpeak> speaker = addr(rex)                   // points at a Dog, seen as an ISpeak
 
-// Calling a virtual method uses the class of the value, not the type of the name:
-const who = someone.role()                        // "student", Student's version runs
-// A method that is not virtual uses the type of the name:
+// Calling a virtual method through the pointer uses the class of the object, not the type of the pointer:
+const who = someone.*.role()                      // "student", Student's version runs
+// A method that is not virtual uses the type of the pointer:
 const d_student = bob.describe()                  // "a student": bob is a Student
-const d_person = someone.describe()               // "a person": the same object, but someone is a People
-const sound = speaker.speak()                     // "woof"
-// With overloaded methods the version is chosen by the arguments first, from the methods of the type of the name,
-// and then, when that version is virtual, the class of the value decides which code runs.
+const d_person = someone.*.describe()             // "a person": the same object, but someone points at a People
+const sound = speaker.*.speak()                   // "woof"
+// With overloaded methods the version is chosen by the arguments first, from the methods of the type behind the pointer,
+// and then, when that version is virtual, the class of the object decides which code runs.
 
-// So a collection can hold different classes behind one type:
-List<ISpeak> speakers = List<ISpeak>()
-speakers.push(Dog(name = "rex"))
-speakers.push(Puppy(name = "pip"))
+// So a collection can hold pointers to different classes behind one type. The objects stay in their own variables,
+// and must outlive the collection:
+let pip = Puppy(name = "pip")
+List<ptr<ISpeak>> speakers = List<ptr<ISpeak>>()
+speakers.push(addr(rex))
+speakers.push(addr(pip))
 for (speakers) |animal| {
-    print(animal.speak())                         // woof, then yip
+    print(animal.*.speak())                       // woof, then yip
 }
 
 // Only what the type promises can be used through it:
-// someone.rollNumber                             // ERROR: People has no rollNumber, only Student does
+// someone.*.rollNumber                           // ERROR: People has no rollNumber, only Student does
 
-// A type test asks what a value really is. is gives a bool, and as gives an Optional of that class.
-const is_student = someone.is<Student>()           // true
-const as_student = someone.as<Student>()           // Optional<Student>
+// A type test asks what an object really is. is gives a bool, and as gives an Optional copy of that class.
+const is_student = someone.*.is<Student>()         // true
+const as_student = someone.*.as<Student>()         // Optional<Student>, a copy of the object when it is a Student
 match (as_student) {
     case (Some) |s| { print(s.value.rollNumber) }
     case (None)     { print("not a student") }
@@ -653,11 +658,12 @@ const top = numbers.pop()                         // Optional<i32>, Some with va
 // ============================================================
 
 //                         struct                      class
-//   value                 non-primitive, shared       non-primitive, shared
+//   value                 non-primitive, copied       non-primitive, copied
 //   clauses after body    none                        extends one class, implements interfaces, use traits
 //   methods               const name = function       const name = method, may be overloaded and overridden
 //   fields                Type name, default optional  declarations, always with a value
-//   equality ==           the same value              the same value
+//   equality ==           none, unless declared       none, unless declared
+//   used as base type     no                          through a ptr<Base> or ptr<Interface>
 //   use it for            plain data                  things with behavior that are used through a common type
 //
 // The same data as a struct and as a class, side by side:
@@ -669,8 +675,10 @@ const PointObject = class {
     f64 x = 0.0
     f64 y = 0.0
 }
-const moved_value = PointValue(x = 1.0, y = 2.0).clone(x = 5.0)    // a struct makes a changed copy with clone(x = ...)
-const object_copy = PointObject(x = 1.0).clone()                    // a class has the plain clone
+let moved_value = PointValue(x = 1.0, y = 2.0)                      // a changed copy is a copy, then the change
+moved_value.x = 5.0
+let object_copy = PointObject(x = 1.0)
+let object_second = object_copy                                     // a class is copied by assigning it too
 const PointLabelled = class {
     String label = ""
 } extends(PointObject)                                              // only a class can extend another one
@@ -744,8 +752,9 @@ Counter.reset()
 // ============================================================
 
 // A method is called on an object: greeter.greet("bob"). The name of a method on its own, greeter.greet without a call,
-// is not a function value. To pass a method on, or to return it, write a function that calls it. That function is a
-// closure (04-functions section 15), so it keeps the object it uses alive for as long as it exists.
+// is not a function value. To pass a method on, write a function that calls it. That function is a closure
+// (04-functions section 15): it uses the object itself, so it can be used while the object is alive, and it cannot be
+// returned from the function that owns the object.
 const Polite = class {
     String name = ""
 
@@ -766,16 +775,17 @@ const run_on = function(Function<[String], String> action, String text) String {
 }
 const via_callback = run_on(greet_with_ann, "cy")
 
-const bind_greeter = function(Polite target) Function<[String], String> {
-    const bound = function(String other) String {
-        return(target.greet(other))                 // target lives as long as bound does
+const greet_twice = function(Polite target, String other) String {
+    const bound = function(String text) String {
+        return(target.greet(text))                  // target is alive for the whole call
     }
-    return(bound)
+    return(bound(bound(other)))
 }
-const greet_with_bea = bind_greeter(Polite(name = "bea"))
-const bea_says = greet_with_bea("dan")             // "hi danbea"
-
-// Each call of bind_greeter makes a new function with its own target, so two bound methods never share an object.
+const twice_says = greet_twice(Polite(name = "bea"), "dan")
+// const bind_greeter = function(Polite target) Function<[String], String> {      // ERROR: bound uses target, which is gone when bind_greeter ends
+//     const bound = function(String other) String { return(target.greet(other)) }
+//     return(bound)
+// }
 
 
 // ============================================================
@@ -810,19 +820,19 @@ const Duck = class {
     }
 } extends(Animal) implements(IFly, ISwim) use(Logs)
 
-const duck = Duck(name = "dax")
-IFly flyer = duck                                  // a Duck where an IFly is expected
-ISwim swimmer = duck                               // the same object through another type
-Animal animal_view = duck                          // and through its base class
-const fly_sound = flyer.fly()                      // "flap"
-const swim_sound = swimmer.swim()                  // "paddle"
+let duck = Duck(name = "dax")
+ptr<IFly> flyer = addr(duck)                       // a Duck seen as an IFly
+ptr<ISwim> swimmer = addr(duck)                    // the same object through another type
+ptr<Animal> animal_view = addr(duck)               // and through its base class
+const fly_sound = flyer.*.fly()                    // "flap"
+const swim_sound = swimmer.*.swim()                // "paddle"
 duck.log("quack")                                  // from the trait Logs
 
 // Rules:
 //   - The order of the clauses is extends, implements, use, as in section 8.
 //   - Each interface is a type that the class can be used as. A trait is not a type, so Logs sample = duck is an error.
 //   - What the class takes from two traits must not clash, see section 8.
-// Logs bad = duck                                 // ERROR: Logs is a trait, not a type
+// ptr<Logs> bad = addr(duck)                       // ERROR: Logs is a trait, not a type
 
 
 // ============================================================

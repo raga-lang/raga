@@ -65,7 +65,7 @@ const radius_pi = shapes.pi                    // 3.14159
 // shapes.pi = 3.0                          // ERROR: pi belongs to the file that exports it
 //   - Two imports of the same file give the same Module, and the file runs only once:
 const again = import("./geometry/shapes")
-const same_module = shapes == again            // true: one module, shared, like every non-primitive value
+const same_pi = shapes.pi == again.pi          // true: one module, and a module is not copied
 //   - import is declared at the top level, like any name, and above its first use.
 
 
@@ -87,7 +87,7 @@ const startup = import("startup")               // the top-level code of startup
 print("after the import")
 const startup_again = import("startup")         // already loaded: the code does not run a second time
 const startup_ready = startup.ready             // true
-const startup_same = startup == startup_again   // true: one module, shared
+const startup_same = startup.ready == startup_again.ready   // true: one module, not run twice
 // The program prints, in this order:
 //   before the import
 //   startup is running
@@ -124,7 +124,7 @@ const corner_area = area_of(corner.x)          // 3.14159
 // export call is private, also when it is a module.
 
 // Rules:
-//   - Taking a name copies nothing: a const that holds a function, a type or a non-primitive value refers to the same one.
+//   - Taking a name of a function or a type makes a second name for it. A const that holds a non-primitive value of the module is a copy.
 //   - A const that holds a primitive of the module, such as pi, holds its value.
 //   - The new name follows the naming style of what it names: types are Capitalized, values and functions are lower_snake_case.
 

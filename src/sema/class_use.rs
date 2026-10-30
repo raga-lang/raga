@@ -349,12 +349,6 @@ impl Checker {
                 self.check_arguments(args);
                 return Ty::Error;
             }
-            if name.name == "clone" {
-                if trailer.is_some() {
-                    self.error(call.span, "clone takes no block");
-                }
-                return self.clone_call(call, receiver, args);
-            }
             if let Some(field) = self.find_field(*id, type_values, &name.name)
                 && let Ty::Function(f) = field.item.ty
             {

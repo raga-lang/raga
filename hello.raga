@@ -32,11 +32,12 @@ const wide = i64(n)               // a cast is the target type called on a value
 // Operators are the usual symbols: + - * / %  == != < <= > >=  && || !  & | ^ ~ << >>
 const grouped = (1 + 2) * 3           // 9
 // Integer math follows C: unsigned overflow wraps, signed overflow and division by zero are undefined.
-// == compares what the name holds: the value for a primitive, the reference for a non-primitive value.
+// == compares numbers, bools and chars by value, a ptr<T> by address, a String by its text and an enum member by number.
+// No other non-primitive value has ==.
 
 // null is not a value. It is only the empty pointer, like C's NULL.
 i32 target = 7
-ptr<i32> p = &target                // & is the address of a variable
+ptr<i32> p = addr(target)           // addr(x) is the address of a variable ( & is only the bitwise and)
 ptr<i32> empty = null             // only a ptr<T> can be null
 const seven = p.*                   // .* follows the pointer to its value: 7
 p.* = 8                           // and can be assigned: target is now 8
@@ -46,17 +47,17 @@ p.* = 8                           // and can be assigned: target is now 8
 // 3. HEAP VALUES: CAPITALIZED TYPES, CREATED BY A LITERAL OR A CONSTRUCTOR
 // ============================================================
 
-// A primitive is copied on assignment. A non-primitive value is shared, both names refer to the same value.
+// A primitive is copied on assignment. So is a non-primitive value: the name owns it, with everything inside it.
 // "text", {1, 2, 3}, [1, 2, 3] and (1, 2.5) are literals, the same as String(...), Array(...), List(...) and Tuple(...).
 // Set and Map have no literal: Set(1, 2, 3), Map("a", 1).
 
 const text = "hello"      // immutable text
 const both = String.join(text, " world")
 
-const days  = {1, 2, 3}      // Array<i32>: fixed size, elements can be replaced
+let days  = {1, 2, 3}      // Array<i32>: fixed size, elements can be replaced
 days.set(0, 9)
 
-const nums = [1, 2, 3]        // List<i32>: grows and shrinks
+let nums = [1, 2, 3]        // List<i32>: grows and shrinks
 nums.push(4)
 const last = nums.pop()
 const none = List<i32>()          // an empty collection needs its type: in angle brackets, or from the context (List<i32> x = [])
@@ -65,10 +66,11 @@ const pair = (1, 2.5)        // Tuple<i32, f64>: fixed size, each slot has its o
 const ages = Map("ann", 31)   // Map<String, i32>: flat, a hash table, a String key is found by its text
 const ids  = Set(1, 2, 3)         // Set<i32>: no duplicates
 
-// == on a non-primitive value asks if two names refer to the same value. Only String can compare contents, with equals.
-// Every non-primitive type has its own clone.
-const same = text.equals("hello")   // true: the same text
-const same_ref = nums == nums.clone()      // false: a clone is a separate value
+// == works on a String, by its text. A List, a Map or a struct has no ==: compare the parts you care about.
+// There is no clone: assigning a value is the copy.
+const same = text == "hello"        // true: the same text
+let nums_copy = nums                // a separate List
+nums_copy.push(5)                   // nums is unchanged
 
 // Types are always passed in angle brackets, values in parentheses.
 const grid = [{1, 2}, {3, 4}]   // List<Array<i32>>
@@ -103,8 +105,9 @@ const Counter = struct {
 let c = Counter(value = 0)
 c.increment()
 const now = c.get()               // 1
-// Every struct also gets clone for free, generated from its fields.
-const p3 = p1.clone()
+// A struct is copied by assigning it, with every field.
+let p3 = p1
+p3.x = 0.5                        // p1 is unchanged
 
 
 // ============================================================
@@ -270,14 +273,15 @@ Result<i32, String> failed = Result.Err("not a number")
 // 8. MEMORY
 // ============================================================
 
-// A name holds a primitive itself, or a reference to a non-primitive value. Memory is freed automatically
-// when nothing refers to a non-primitive value any more, there is no free.
+// A name owns its value, a primitive or not. Assigning copies it, and a value is freed when the block of its name ends.
+// Nothing is shared unless you point at it: addr(x) gives a ptr<T>, and p.* is the value.
 let copy_a = 1
 let copy_b = copy_a                         // a copy: changing copy_b leaves copy_a alone
-const shared1 = [1]
-const shared2 = shared1                   // the same List: a change through either name is seen by both
-const separate = shared1.clone()          // a separate List
-// const does not freeze a non-primitive value, it only stops the name from being rebound.
+let owned1 = [1]
+let owned2 = owned1                       // a copy of the List: a change to owned2 leaves owned1 alone
+ptr<List<i32>> shared = addr(owned1)      // a pointer shares: a change through it is a change of owned1
+shared.*.push(2)
+// const freezes the whole value: a const List cannot be pushed to. alloc and free are for manual memory (08-memory).
 
 
 // ============================================================
@@ -313,7 +317,7 @@ try {
 // An attribute is written in [ ] on the line above a declaration. You declare your own with the head attribute, in
 // three patterns: only metadata, a build hook that runs once while building, and a call hook that runs on every call.
 const page = attribute(String path)                     // metadata: the arguments are stored, read back with attributes_of
-const pages = Map<String, BindingInfo>()
+let pages = Map<String, BindingInfo>()
 const route = attribute(String path) |target, path| {   // build hook: the block names target and each parameter
     pages.set(path, target)
 } call |target, args, next| {                            // call hook: target, the arguments of the call, and next
