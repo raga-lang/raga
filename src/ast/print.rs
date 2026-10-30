@@ -43,16 +43,21 @@ impl Display for Stmt {
 
 impl Display for Type {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if self.name.name == "function" {
-            write!(f, "function(")?;
-            for (i, arg) in self.args.iter().enumerate() {
-                write!(f, "{}{arg}", if i > 0 { ", " } else { "" })?;
+        if self.name.name == "Function" && (!self.args.is_empty() || self.ret.is_some()) {
+            write!(f, "Function<")?;
+            if self.args.is_empty() {
+                write!(f, "void")?;
+            } else {
+                write!(f, "[")?;
+                for (i, arg) in self.args.iter().enumerate() {
+                    write!(f, "{}{arg}", if i > 0 { ", " } else { "" })?;
+                }
+                write!(f, "]")?;
             }
-            write!(f, ")")?;
             if let Some(ret) = &self.ret {
-                write!(f, " {ret}")?;
+                write!(f, ", {ret}")?;
             }
-            return Ok(());
+            return write!(f, ">");
         }
         write!(f, "{}", self.name.name)?;
         write_type_args(f, &self.args)

@@ -1135,8 +1135,8 @@ const ADD: &str = "const add = function(i32 a, i32 b) i32 { return(a + b) }\n";
 
 #[test]
 fn a_function_has_a_type_made_of_its_parameters_and_what_it_returns() {
-    assert_eq!(type_of(ADD, "add"), "function(i32, i32) i32");
-    assert_eq!(type_of("const f = function() { }", "f"), "function()");
+    assert_eq!(type_of(ADD, "add"), "Function<[i32, i32], i32>");
+    assert_eq!(type_of("const f = function() { }", "f"), "Function");
     assert_eq!(
         type_of("const f = function<T>(T v) T { return(v) }", "f"),
         "function<T>(T) T"
@@ -1148,15 +1148,15 @@ fn a_function_has_a_type_made_of_its_parameters_and_what_it_returns() {
 fn the_return_type_is_written_or_worked_out_from_the_returns() {
     assert_eq!(
         type_of("const f = function(f64 x) { return(x * x * x) }", "f"),
-        "function(f64) f64"
+        "Function<[f64], f64>"
     );
     assert_eq!(
         type_of("const f = function() { return(0.5) }", "f"),
-        "function() f64"
+        "Function<void, f64>"
     );
     assert_eq!(
         type_of("const f = function(String s) { print(s) }", "f"),
-        "function(String)"
+        "Function<[String]>"
     );
     ok("const f = function(i32 n) { if (n < 1) { return() } print(n) }");
     fails(
@@ -1236,7 +1236,7 @@ fn a_parameter_is_fixed_inside_the_function() {
 fn parameters_have_an_order() {
     ok("const f = function(i32 a, i32 b = 2) { }");
     ok("const f = function(i32 a, i32 ...rest) { }");
-    ok("const f = function(i32 a, i32 b = 1, function(i32) work) { }");
+    ok("const f = function(i32 a, i32 b = 1, Function<[i32]> work) { }");
     fails(
         "const f = function(i32 a = 2, i32 b) { }",
         "a default must not come before a parameter without one",
@@ -1250,11 +1250,11 @@ fn parameters_have_an_order() {
         "cannot be mixed",
     );
     fails(
-        "const f = function(function() work, i32 pause = 100) { }",
+        "const f = function(Function work, i32 pause = 100) { }",
         "nothing may follow a callback",
     );
     fails(
-        "const f = function(function() work, i32 ...rest) { }",
+        "const f = function(Function work, i32 ...rest) { }",
         "nothing may follow a callback",
     );
     fails(
@@ -1321,7 +1321,7 @@ fn extra_arguments_go_to_a_variadic_parameter() {
     // inside the function the variadic name is an Array of the extra arguments
     assert_eq!(
         type_of("const f = function(i32 ...v) { const a = v }", "f"),
-        "function(i32)"
+        "Function<[i32]>"
     );
     ok(
         "const f = function(i32 fallback, i32 ...v) i32 { if (v.len() == 0) { return(fallback) }\nreturn(v.get(0)) }",
@@ -1347,19 +1347,19 @@ fn a_function_is_a_value() {
     let shout = "const shout = function(String t, i32 n) String { return(t) }\nconst whisper = function(String t, i32 n) String { return(t) }\n";
     assert_eq!(
         type_of(&format!("{shout}const inferred = shout"), "inferred"),
-        "function(String, i32) String"
+        "Function<[String, i32], String>"
     );
     ok(&format!(
-        "{shout}function(String, i32) String current = shout\ncurrent = whisper\nconst same = current == whisper"
+        "{shout}Function<[String, i32], String> current = shout\ncurrent = whisper\nconst same = current == whisper"
     ));
     ok(&format!(
-        "{shout}const style = function(bool loud) function(String, i32) String {{ if (loud) {{ return(shout) }}\nreturn(whisper) }}\nconst speak = style(true)\nconst line = speak(\"hi\", 3)\nconst quiet = style(false)(\"hi\", 3)"
+        "{shout}const style = function(bool loud) Function<[String, i32], String> {{ if (loud) {{ return(shout) }}\nreturn(whisper) }}\nconst speak = style(true)\nconst line = speak(\"hi\", 3)\nconst quiet = style(false)(\"hi\", 3)"
     ));
     fails(
         &format!(
-            "{shout}const plus = function(i32 a, i32 b) i32 {{ return(a) }}\nfunction(String, i32) String current = shout\ncurrent = plus"
+            "{shout}const plus = function(i32 a, i32 b) i32 {{ return(a) }}\nFunction<[String, i32], String> current = shout\ncurrent = plus"
         ),
-        "is not function(String, i32) String",
+        "is not Function<[String, i32], String>",
     );
     fails(
         &format!(
@@ -1379,7 +1379,7 @@ fn a_function_with_no_parameters_is_called_with_parentheses() {
     // a name is the function, whatever it takes
     assert_eq!(
         type_of(&format!("{answer}const a = answer"), "a"),
-        "function() i32"
+        "Function<void, i32>"
     );
     assert_eq!(type_of(&format!("{answer}const a = answer()"), "a"), "i32");
     assert_eq!(
@@ -1392,15 +1392,15 @@ fn a_function_with_no_parameters_is_called_with_parentheses() {
     );
     ok(&format!("{answer}answer()"));
     // where a function is wanted, the name is the function
-    let timed = "const echo = function() { }\nconst run = function(function() work) { work() }\n";
+    let timed = "const echo = function() { }\nconst run = function(Function work) { work() }\n";
     ok(&format!("{timed}run(echo)"));
     fails(
         &format!("{timed}run(echo())"),
-        "this gives nothing, but function() is needed",
+        "this gives nothing, but Function is needed",
     );
     assert_eq!(
         type_of(&format!("{answer}const d = double"), "d"),
-        "function(i32) i32"
+        "Function<[i32], i32>"
     );
 }
 
@@ -1436,7 +1436,7 @@ fn a_name_is_not_an_argument_without_parentheses() {
 
 #[test]
 fn a_callback_is_a_parameter_whose_type_is_a_function() {
-    let apply = "const apply = function(i32 value, function(i32) i32 transform) i32 { return(transform(value)) }\nconst double = function(i32 n) i32 { return(n * 2) }\n";
+    let apply = "const apply = function(i32 value, Function<[i32], i32> transform) i32 { return(transform(value)) }\nconst double = function(i32 n) i32 { return(n * 2) }\n";
     ok(&format!(
         "{apply}apply(4, double)\napply(value = 4, transform = double)"
     ));
@@ -1446,17 +1446,17 @@ fn a_callback_is_a_parameter_whose_type_is_a_function() {
     );
     fails(
         &format!("{apply}apply(4, 5)"),
-        "i32 is not function(i32) i32",
+        "i32 is not Function<[i32], i32>",
     );
     fails(
         &format!("{apply}const other = function(String s) String {{ return(s) }}\napply(4, other)"),
-        "function(String) String is not function(i32) i32",
+        "Function<[String], String> is not Function<[i32], i32>",
     );
 }
 
 #[test]
 fn the_last_argument_can_be_a_block() {
-    let apply = "const apply = function(i32 value, function(i32) i32 transform) i32 { return(transform(value)) }\n";
+    let apply = "const apply = function(i32 value, Function<[i32], i32> transform) i32 { return(transform(value)) }\n";
     ok(&format!(
         "{apply}const r = apply(4) |n| {{ return(n * 3) }}"
     ));
@@ -1486,24 +1486,24 @@ fn the_last_argument_can_be_a_block() {
     );
     // a callback with no parameters, and one that returns nothing
     ok(
-        "const timed = function(function() work) { work() }\ntimed() { print(1) }\ntimed { print(2) }",
+        "const timed = function(Function work) { work() }\ntimed() { print(1) }\ntimed { print(2) }",
     );
     ok(
-        "const twice = function(i32 v, function(i32) action) { action(v)\naction(v) }\ntwice(5) |n| { print(n) }",
+        "const twice = function(i32 v, Function<[i32]> action) { action(v)\naction(v) }\ntwice(5) |n| { print(n) }",
     );
     // a block can use the names around it, and change a let
     ok(
-        "let running = 0\nconst repeat = function(i32 t, function(i32) action) { action(t) }\nrepeat(4) |pass| { running = running + pass }",
+        "let running = 0\nconst repeat = function(i32 t, Function<[i32]> action) { action(t) }\nrepeat(4) |pass| { running = running + pass }",
     );
     // the block fills the last parameter, which may come after defaults
     ok(
-        "const attempts = function(i32 limit, i32 pause = 100, function(i32 number) work) { work(limit) }\nattempts(3) |number| { print(number) }\nattempts(3, pause = 50) |number| { print(number) }",
+        "const attempts = function(i32 limit, i32 pause = 100, Function<[i32]> work) { work(limit) }\nattempts(3) |number| { print(number) }\nattempts(3, pause = 50) |number| { print(number) }",
     );
 }
 
 #[test]
 fn a_block_fills_the_last_parameter_and_nothing_else() {
-    let attempt = "const attempt = function(i32 v, function(String r) failed, function(i32 r) done) { done(v) }\nconst report = function(String r) { print(r) }\n";
+    let attempt = "const attempt = function(i32 v, Function<[String]> failed, Function<[i32]> done) { done(v) }\nconst report = function(String r) { print(r) }\n";
     ok(&format!(
         "{attempt}attempt(5, failed = report) |result| {{ print(result) }}\nattempt(-5, report) |result| {{ print(result) }}"
     ));
@@ -1567,7 +1567,7 @@ fn a_sort_takes_a_callback() {
 
 #[test]
 fn a_function_declared_inside_another_uses_the_names_around_it() {
-    let counter = "const make_counter = function(i32 start) function() i32 {\nlet count = start\nconst next = function() i32 {\ncount = count + 1\nreturn(count)\n}\nreturn(next)\n}\n";
+    let counter = "const make_counter = function(i32 start) Function<void, i32> {\nlet count = start\nconst next = function() i32 {\ncount = count + 1\nreturn(count)\n}\nreturn(next)\n}\n";
     ok(counter);
     assert_eq!(
         type_of(
@@ -1587,11 +1587,11 @@ fn a_function_declared_inside_another_uses_the_names_around_it() {
     );
     // a parameter or a const of the outer function is never changed
     fails(
-        "const fixed = function(i32 n) function() { const g = function() { n = 5 }\nreturn(g) }",
+        "const fixed = function(i32 n) Function{ const g = function() { n = 5 }\nreturn(g) }",
         "`n` is a parameter and cannot be assigned",
     );
     ok(
-        "const items = List<function(i32) i32>()\nfor (range(0, 3)) |step| { items.push(function(i32 v) i32 { return(v + step) }) }\nconst added = items.get(2)(10)",
+        "const items = List<Function<[i32], i32>>()\nfor (range(0, 3)) |step| { items.push(function(i32 v) i32 { return(v + step) }) }\nconst added = items.get(2)(10)",
     );
 }
 
@@ -1651,7 +1651,7 @@ fn a_type_parameter_has_only_what_every_type_has() {
 
 #[test]
 fn a_generic_callback_gets_its_types_from_the_other_arguments() {
-    let larger = "const larger = function<T>(T a, T b, function(T, T) i32 compare) T { if (compare(a, b) > 0) { return(a) }\nreturn(b) }\n";
+    let larger = "const larger = function<T>(T a, T b, Function<[T, T], i32> compare) T { if (compare(a, b) > 0) { return(a) }\nreturn(b) }\n";
     assert_eq!(
         type_of(
             &format!("{larger}const r = larger(3, 7) |x, y| {{ return(x - y) }}"),
@@ -1668,7 +1668,7 @@ fn a_generic_callback_gets_its_types_from_the_other_arguments() {
         ),
         "String"
     );
-    let each = "const each = function<T>(List<T> items, function(T, usize) action) { }\n";
+    let each = "const each = function<T>(List<T> items, Function<[T, usize]> action) { }\n";
     ok(&format!(
         "{each}each([\"a\", \"b\"]) |item, position| {{ print(position) }}"
     ));
@@ -1676,16 +1676,16 @@ fn a_generic_callback_gets_its_types_from_the_other_arguments() {
 
 #[test]
 fn a_generic_function_as_a_value_needs_its_types() {
-    let generic = "const identity_of = function<T>(T value) T { return(value) }\nconst apply_twice = function(function(i32) i32 f, i32 n) i32 { return(f(f(n))) }\n";
+    let generic = "const identity_of = function<T>(T value) T { return(value) }\nconst apply_twice = function(Function<[i32], i32> f, i32 n) i32 { return(f(f(n))) }\n";
     assert_eq!(
         type_of(&format!("{generic}const g = identity_of<i32>"), "g"),
-        "function(i32) i32"
+        "Function<[i32], i32>"
     );
     ok(&format!(
         "{generic}apply_twice(identity_of<i32>, 5)\napply_twice(identity_of, 5)"
     ));
     ok(&format!(
-        "{generic}const make = function() function(String) String {{ return(identity_of<String>) }}\nconst s = make()(\"x\")"
+        "{generic}const make = function() Function<[String], String> {{ return(identity_of<String>) }}\nconst s = make()(\"x\")"
     ));
     fails(
         &format!("{generic}const bad = identity_of"),
@@ -1693,7 +1693,7 @@ fn a_generic_function_as_a_value_needs_its_types() {
     );
     fails(
         &format!("{generic}apply_twice(identity_of<String>, 5)"),
-        "function(String) String is not function(i32) i32",
+        "Function<[String], String> is not Function<[i32], i32>",
     );
     fails(
         &format!("{generic}const g = identity_of<i32, i32>"),
@@ -1703,15 +1703,15 @@ fn a_generic_function_as_a_value_needs_its_types() {
 
 #[test]
 fn a_function_type_is_checked_where_it_is_written() {
-    ok("function(i32) i32 f = function(i32 n) i32 { return(n) }");
+    ok("Function<[i32], i32> f = function(i32 n) i32 { return(n) }");
     fails(
-        "function(i32) i32 f = function(String s) String { return(s) }",
-        "is not function(i32) i32",
+        "Function<[i32], i32> f = function(String s) String { return(s) }",
+        "is not Function<[i32], i32>",
     );
-    ok("const l = List<function(i32) i32>()");
+    ok("const l = List<Function<[i32], i32>>()");
     fails(
-        "const l = List<function(i32) i32>()\nl.push(function(String s) String { return(s) })",
-        "is not function(i32) i32",
+        "const l = List<Function<[i32], i32>>()\nl.push(function(String s) String { return(s) })",
+        "is not Function<[i32], i32>",
     );
 }
 
@@ -2250,7 +2250,7 @@ fn the_last_argument_can_be_the_fields_of_a_struct() {
 
 #[test]
 fn chaining_with_structs_is_a_chain_of_methods() {
-    let chain = "const Closed = struct { }\nconst AfterWhen = struct {\n bool taken\n const or_when = function(bool condition, function() body) AfterWhen {\n if (this.taken) { return(this) }\n if (condition) { body()\n return(AfterWhen(taken = true)) }\n return(this)\n }\n const otherwise = function(function() body) Closed {\n if (!this.taken) { body() }\n return(Closed())\n }\n}\nconst when = function(bool condition, function() body) AfterWhen {\n if (condition) { body()\n return(AfterWhen(taken = true)) }\n return(AfterWhen(taken = false))\n}\nlet weather = \"\"\n";
+    let chain = "const Closed = struct { }\nconst AfterWhen = struct {\n bool taken\n const or_when = function(bool condition, Function body) AfterWhen {\n if (this.taken) { return(this) }\n if (condition) { body()\n return(AfterWhen(taken = true)) }\n return(this)\n }\n const otherwise = function(Function body) Closed {\n if (!this.taken) { body() }\n return(Closed())\n }\n}\nconst when = function(bool condition, Function body) AfterWhen {\n if (condition) { body()\n return(AfterWhen(taken = true)) }\n return(AfterWhen(taken = false))\n}\nlet weather = \"\"\n";
     ok(&format!(
         "{chain}when(true) {{ weather = \"a\" }} or_when(false) {{ weather = \"b\" }} otherwise {{ weather = \"c\" }}"
     ));
@@ -2271,7 +2271,7 @@ fn chaining_with_structs_is_a_chain_of_methods() {
 #[test]
 fn a_struct_can_hold_a_function() {
     ok(
-        "const Button = struct {\n String label\n function() on_click\n}\nlet clicks = 0\nconst b = Button(label = \"save\", on_click = function() { clicks = clicks + 1 })\nb.on_click()",
+        "const Button = struct {\n String label\n Function on_click\n}\nlet clicks = 0\nconst b = Button(label = \"save\", on_click = function() { clicks = clicks + 1 })\nb.on_click()",
     );
 }
 

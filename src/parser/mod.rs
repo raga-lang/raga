@@ -306,10 +306,7 @@ impl<'a> Parser<'a> {
             TokenKind::Keyword(Keyword::Break | Keyword::Continue | Keyword::Return) => {
                 Some(self.jump())
             }
-            TokenKind::Keyword(Keyword::Function) => match self.typed_declaration() {
-                Some(stmt) => Some(stmt),
-                None => Some(self.expression_or_assignment()),
-            },
+            TokenKind::Keyword(Keyword::Function) => Some(self.expression_or_assignment()),
             TokenKind::Keyword(keyword) => {
                 self.not_yet(&format!("`{}`", keyword.as_str()));
                 None
@@ -457,7 +454,7 @@ impl<'a> Parser<'a> {
         let start = self.tok().span;
         let before = self.pos;
         let ty = self.attempt(|p| {
-            let ty = p.ty_named()?;
+            let ty = p.ty()?;
             (p.at(TokenKind::Ident) && !p.tok().starts_line).then_some(ty)
         })?;
         // `Type name = value` declares. Without the `=` it is not a declaration: `double base` is a mistake the expression reports

@@ -96,8 +96,9 @@ pub struct Assign {
 
 /// A type as written: a name with optional type arguments, `i32`, `List<i32>`, `Map<String, List<i32>>`.
 ///
-/// A function type is written like the head of a function: `function(i32, String) bool`. Its name is `function`, its
-/// `args` are the types of the parameters, and `ret` is the type it gives back, absent when it gives nothing.
+/// A function type is written `Function<[i32, String], bool>`, or `Function` alone for no parameters and nothing
+/// back. Its name is `Function`, its `args` are the types of the parameters, and `ret` is the type it gives back, absent
+/// when it gives nothing.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Type {
     pub name: Ident,

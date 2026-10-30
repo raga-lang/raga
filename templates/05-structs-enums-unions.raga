@@ -739,7 +739,7 @@ const AfterWhen = struct {
     bool taken                                  // whether an earlier block has already run
 
     // Runs its block when nothing ran before and its condition holds. It gives AfterWhen again, so or_when repeats.
-    const or_when = function(bool condition, function() body) AfterWhen {
+    const or_when = function(bool condition, Function body) AfterWhen {
         if (this.taken) { return(this) }
         if (condition) {
             body()
@@ -749,13 +749,13 @@ const AfterWhen = struct {
     }
 
     // Runs its block when nothing ran before. It gives Closed, so nothing can follow it.
-    const otherwise = function(function() body) Closed {
+    const otherwise = function(Function body) Closed {
         if (!this.taken) { body() }
         return(Closed())
     }
 }
 
-const when = function(bool condition, function() body) AfterWhen {
+const when = function(bool condition, Function body) AfterWhen {
     if (condition) {
         body()
         return(AfterWhen(taken = true))
@@ -798,7 +798,7 @@ const download = function(String url) Result<String, String> {
 const AfterThen = struct {                      // after then: only on_error may follow
     Result<String, String> result
 
-    const on_error = function(function(String reason) handler) Closed {
+    const on_error = function(Function<[String]> handler) Closed {
         match (this.result) {
             case (Ok)  |ok|  { }
             case (Err) |bad| { handler(bad.reason) }
@@ -811,7 +811,7 @@ const AfterFetch = struct {                     // after fetch: then or on_error
     Result<String, String> result
 
     // Runs its block with the body when the request worked. It gives AfterThen, so only on_error can come next.
-    const then = function(function(String body) handler) AfterThen {
+    const then = function(Function<[String]> handler) AfterThen {
         match (this.result) {
             case (Ok)  |ok|  { handler(ok.value) }
             case (Err) |bad| { }
@@ -820,7 +820,7 @@ const AfterFetch = struct {                     // after fetch: then or on_error
     }
 
     // Runs its block with the reason when the request failed. It ends the chain.
-    const on_error = function(function(String reason) handler) Closed {
+    const on_error = function(Function<[String]> handler) Closed {
         match (this.result) {
             case (Ok)  |ok|  { }
             case (Err) |bad| { handler(bad.reason) }
@@ -857,7 +857,7 @@ fetch("/items") then |body| {
 // back decides which clause may follow.
 
 const AfterHandled = struct {                   // after on_error: only cleanup may follow
-    const cleanup = function(function() work) Closed {
+    const cleanup = function(Function work) Closed {
         work()                                  // always runs
         return(Closed())
     }
@@ -866,7 +866,7 @@ const AfterHandled = struct {                   // after on_error: only cleanup 
 const AfterGuard = struct {                     // after guard: on_error or cleanup may follow
     Optional<IError> failure                    // the error that the block threw, or None
 
-    const on_error = function(function(IError error) handler) AfterHandled {
+    const on_error = function(Function<[IError]> handler) AfterHandled {
         match (this.failure) {
             case (Some) |thrown| { handler(thrown.value) }
             case (None)          { }
@@ -874,13 +874,13 @@ const AfterGuard = struct {                     // after guard: on_error or clea
         return(AfterHandled())
     }
 
-    const cleanup = function(function() work) Closed {
+    const cleanup = function(Function work) Closed {
         work()
         return(Closed())
     }
 }
 
-const guard = function(function() body) AfterGuard {
+const guard = function(Function body) AfterGuard {
     try {
         body()
     } catch |e| {

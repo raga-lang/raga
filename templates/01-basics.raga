@@ -61,7 +61,7 @@ counter = counter + 1
 // ============================================================
 
 // A primitive is a plain value stored on the stack. Its type name starts with a lowercase letter.
-// Every non-primitive type has a name that starts with a capital letter: String, Array, List, Map, Set, Tuple,
+// Every non-primitive type has a name that starts with a capital letter: String, Array, List, Map, Set, Tuple, Function,
 // and every struct, enum, union, class, interface and trait you declare (05-structs-enums-unions, 07-classes-and-traits).
 // The built-in non-primitive types have literals too: "abc", {1, 2, 3}, [1, 2, 3], (1, 2.5), see sections 6 and 10.
 // Write the literal directly and the type is inferred.
@@ -434,7 +434,7 @@ const k5 = f64("2.5")    // 2.5
 //   inferred       from a literal              from a literal or from the constructor
 //
 // Primitives are i8..u128, isize, usize, f32..f128, bool, char and ptr<T>. A primitive lives on the stack.
-// Every other type is non-primitive: String, Array, List, Map, Set, Tuple, Optional, Result, and every struct, enum,
+// Every other type is non-primitive: String, Array, List, Map, Set, Tuple, Function, Optional, Result, and every struct, enum,
 // union, class, interface, trait and alias that you declare (05-structs-enums-unions, 07-classes-and-traits).
 // A non-primitive value lives on the heap, and the stack holds only the reference to it. That is the whole rule.
 // There is no third kind of value, so a capital letter always means "shared, not copied".
@@ -563,7 +563,7 @@ print(sh)                         // 1
 // would hide the built-in one for the whole file:
 //   functions   print len range read_line sleep typeof sizeof alignof alloc free compile reflect
 //               attributes_of get_field set_field import export $
-//   types       String Array List Tuple Set Map Optional Result Error Weak Any TypeInfo FieldInfo VariantInfo
+//   types       String Array List Tuple Set Map Function Optional Result Error Weak Any TypeInfo FieldInfo VariantInfo
 //               AttributeInfo BindingInfo Kind Op Module Visibility Inheritance Ownership Math System File Time Random IError
 // const print = 1                // ERROR: print is built in, choose another name
 // const List = struct { }        // ERROR: List is a built-in type

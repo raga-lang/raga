@@ -219,7 +219,7 @@ impl Parser<'_> {
     /// A parameter: `Type name`, `Type name = default`, `Type ...name`.
     fn param(&mut self) -> Option<Expr> {
         let start = self.tok().span;
-        let Some(ty) = self.ty_named() else {
+        let Some(ty) = self.ty() else {
             let message = format!(
                 "expected a parameter like `Type name`, found {}",
                 self.found()

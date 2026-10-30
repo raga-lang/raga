@@ -7,12 +7,12 @@ const Tally = struct {
 }
 const tally = Tally(passed = 0, failed = 0)
 
-const describe = function(String name, function() body) {
+const describe = function(String name, Function body) {
     print(name)
     body()
 }
 
-const it = function(String name, function() body) {
+const it = function(String name, Function body) {
     try {
         body()
         tally.passed = tally.passed + 1

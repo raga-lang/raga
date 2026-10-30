@@ -95,6 +95,7 @@ const RESERVED_TYPES: &[&str] = &[
     "Error",
     "Weak",
     "Any",
+    "Function",
     "TypeInfo",
     "FieldInfo",
     "VariantInfo",

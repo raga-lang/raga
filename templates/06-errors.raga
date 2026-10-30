@@ -223,7 +223,7 @@ const lookup = function(i32 age) String {
 const log_message = function(String message) {
     print(message)
 }
-const guarded = function(function(String message) on_fail, function() action) {
+const guarded = function(Function<[String]> on_fail, Function action) {
     try {
         action()
     } catch |e| {

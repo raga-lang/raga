@@ -450,19 +450,35 @@ impl fmt::Display for Ty {
                 write!(f, ">")
             }
             Ty::Function(function) => {
-                write!(f, "function")?;
                 if !function.generics.is_empty() {
-                    write!(f, "<{}>", function.generics.join(", "))?;
+                    // a generic function has no single type to write, so it is shown as its head
+                    write!(f, "function<{}>(", function.generics.join(", "))?;
+                    for (i, param) in function.params.iter().enumerate() {
+                        write!(f, "{}{}", if i > 0 { ", " } else { "" }, param.ty)?;
+                    }
+                    write!(f, ")")?;
+                    if *function.ret != Ty::Void {
+                        write!(f, " {}", function.ret)?;
+                    }
+                    return Ok(());
                 }
-                write!(f, "(")?;
-                for (i, param) in function.params.iter().enumerate() {
-                    write!(f, "{}{}", if i > 0 { ", " } else { "" }, param.ty)?;
+                if function.params.is_empty() && *function.ret == Ty::Void {
+                    return write!(f, "Function");
                 }
-                write!(f, ")")?;
+                write!(f, "Function<")?;
+                if function.params.is_empty() {
+                    write!(f, "void")?;
+                } else {
+                    write!(f, "[")?;
+                    for (i, param) in function.params.iter().enumerate() {
+                        write!(f, "{}{}", if i > 0 { ", " } else { "" }, param.ty)?;
+                    }
+                    write!(f, "]")?;
+                }
                 if *function.ret != Ty::Void {
-                    write!(f, " {}", function.ret)?;
+                    write!(f, ", {}", function.ret)?;
                 }
-                Ok(())
+                write!(f, ">")
             }
             Ty::Defined { name, args, .. } => {
                 write!(f, "{name}")?;

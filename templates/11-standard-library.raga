@@ -101,7 +101,7 @@
 //   list.insert(usize index, T value)     puts the value in at the position, later elements move up   (02-data-structures)
 //   list.remove(usize index) T            removes and gives the element at the position, throws if none (02-data-structures)
 //   list.reverse()                        turns the List around, in place                               (02-data-structures)
-//   list.sort(function(T, T) i32 compare) sorts in place: negative when a is first, 0 equal, positive  (04-functions)
+//   list.sort(Function<[T, T], i32> compare) sorts in place: negative when a is first, 0 equal, positive  (04-functions)
 // A Tuple has get and set with a position that is a literal, and every slot has its own type.
 
 
@@ -165,11 +165,11 @@
 //   Result.Ok(value)  Result.Err(reason)          the two variants, the fields are value and reason     (05-structs-enums-unions)
 //   optional.unwrap() T                           the value, throws an Error when there is none         (06-errors)
 //   optional.or_throw() T                         the same as unwrap, named for giving up               (06-errors)
-//   optional.or_else(function() T replace) T      the value, or what the block gives when there is none  (06-errors)
+//   optional.or_else(Function<void, T> replace) T the value, or what the block gives when there is none  (06-errors)
 //   result.unwrap() T                             the value, throws an Error with the reason when Err   (06-errors)
 //   result.or_throw() T                           the same as unwrap, named for giving up               (06-errors)
 //   result.unwrapOr(T fallback) T                 the value, or the fallback when Err                   (06-errors)
-//   result.or_else(function(E reason) T replace) T   the value, or what the block gives for the reason  (06-errors)
+//   result.or_else(Function<[E], T> replace) T    the value, or what the block gives for the reason  (06-errors)
 //   Error has the fields message (String) and code (i32).                                               (06-errors)
 
 

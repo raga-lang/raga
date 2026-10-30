@@ -557,7 +557,7 @@ impl Checker {
         {
             return simple(self, Ty::TypeParam(name.to_string()));
         }
-        if name == "function" {
+        if name == "Function" {
             let ret = written
                 .ret
                 .as_ref()

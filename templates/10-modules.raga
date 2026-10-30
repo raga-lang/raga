@@ -173,8 +173,8 @@ const lib_area = shapes_lib.circle_area(1.0)
 // describe groups tests, it runs one test, and check fails a test by throwing an Error (06-errors). The library is
 // libraries/test.raga next to this file, and it is not built in.
 //   ---- libraries/test.raga (the important parts) ----
-//   const describe = function(String name, function() body) { print(name)  body() }
-//   const it = function(String name, function() body) {
+//   const describe = function(String name, Function body) { print(name)  body() }
+//   const it = function(String name, Function body) {
 //       try { body()  ... counts it as passed } catch |e| { ... counts it as failed and prints e.message }
 //   }
 //   const check = function(bool condition) { if (!condition) { throw(Error(message = "check failed", code = 1)) } }

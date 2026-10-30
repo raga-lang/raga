@@ -158,7 +158,7 @@ impl Parser<'_> {
         }
         match self.tok().kind {
             TokenKind::Keyword(Keyword::Const | Keyword::Let) => self.inferred_declaration(),
-            TokenKind::Ident | TokenKind::Keyword(Keyword::Function) => {
+            TokenKind::Ident => {
                 if let Some(field) = self.attempt(|p| p.field()) {
                     return Some(field);
                 }
@@ -171,7 +171,7 @@ impl Parser<'_> {
     /// `Type name` or `Type name = default`
     fn field(&mut self) -> Option<Stmt> {
         let start = self.tok().span;
-        let ty = self.ty_named()?;
+        let ty = self.ty()?;
         if !self.at(TokenKind::Ident) || self.tok().starts_line {
             return None;
         }

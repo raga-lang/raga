@@ -761,12 +761,12 @@ const greet_with_ann = function(String other) String {
 const ann_says = greet_with_ann("bob")             // "hi bobann"
 
 // It can be handed to any function that takes a callback, and returned from a function:
-const run_on = function(function(String) String action, String text) String {
+const run_on = function(Function<[String], String> action, String text) String {
     return(action(text))
 }
 const via_callback = run_on(greet_with_ann, "cy")
 
-const bind_greeter = function(Polite target) function(String) String {
+const bind_greeter = function(Polite target) Function<[String], String> {
     const bound = function(String other) String {
         return(target.greet(other))                 // target lives as long as bound does
     }

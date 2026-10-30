@@ -637,26 +637,26 @@ fn a_generic_function_names_its_type_parameters_after_function() {
 #[test]
 fn a_function_type_is_written_like_the_head_of_a_function() {
     assert_eq!(
-        tree("function(String, i32) String current = shout"),
-        "(var function(String, i32) String current shout)"
+        tree("Function<[String, i32], String> current = shout"),
+        "(var Function<[String, i32], String> current shout)"
     );
-    assert_eq!(tree("function() f = g"), "(var function() f g)");
+    assert_eq!(tree("Function f = g"), "(var Function f g)");
     // the word after the parentheses is the return type, or the name when it is followed by `=`
     assert_eq!(
-        tree("function(i32) i32 f = g"),
-        "(var function(i32) i32 f g)"
+        tree("Function<[i32], i32> f = g"),
+        "(var Function<[i32], i32> f g)"
     );
-    assert_eq!(tree("function(i32) f = g"), "(var function(i32) f g)");
+    assert_eq!(tree("Function<[i32]> f = g"), "(var Function<[i32]> f g)");
     // a callback parameter, with and without a return type
     assert_eq!(
         tree(
-            "const f = function(function(i32) i32 g, function() work) function(i32) i32 { return(g) }"
+            "const f = function(Function<[i32], i32> g, Function work) Function<[i32], i32> { return(g) }"
         ),
-        "(const f (call function (param function(i32) i32 g) (param function() work) -> function(i32) i32 {(call return g)}))"
+        "(const f (call function (param Function<[i32], i32> g) (param Function work) -> Function<[i32], i32> {(call return g)}))"
     );
     assert_eq!(
-        tree("const l = List<function(i32) i32>()"),
-        "(const l (call List<function(i32) i32>))"
+        tree("const l = List<Function<[i32], i32>>()"),
+        "(const l (call List<Function<[i32], i32>>))"
     );
 }
 
@@ -921,8 +921,8 @@ fn members_are_separated_by_a_line_or_a_semicolon_and_never_a_comma() {
     assert!(!errors("const bad = struct { f64 w f64 h }").is_empty());
     // a field of a function type
     assert_eq!(
-        tree("const B = struct {\n  String label\n  function() on_click\n}"),
-        "(const B (call struct {(param String label) (param function() on_click)}))"
+        tree("const B = struct {\n  String label\n  Function on_click\n}"),
+        "(const B (call struct {(param String label) (param Function on_click)}))"
     );
 }
 

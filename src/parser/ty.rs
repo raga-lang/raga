@@ -1,4 +1,4 @@
-//! Types as they are written: `i32`, `List<i32>`, `Map<String, List<i32>>`, `function(i32, String) bool`.
+//! Types as they are written: `i32`, `List<i32>`, `Map<String, List<i32>>`, `Function<[i32, String], bool>`.
 //!
 //! These functions never report an error. They answer "is there a type here?" with `Some` or `None`, because the
 //! parser asks that question about text that is often not a type at all (`a < b` starts like `List<i32>`), always
@@ -6,25 +6,15 @@
 
 use super::Parser;
 use crate::ast::{Ident, Type};
-use crate::lexer::{Keyword, TokenKind};
+use crate::lexer::TokenKind;
 
 impl Parser<'_> {
     /// A type that nothing but the end of the type follows: a type argument, a return type before `{`.
     pub(super) fn ty(&mut self) -> Option<Type> {
-        self.ty_in(false)
+        self.ty_in()
     }
 
-    /// A type that a name follows: `Type name`, as in a declaration or a parameter. It matters for a function type, whose
-    /// return type is optional: in `function(i32) i32 transform` the `i32` is the return type, and in
-    /// `function(i32) action` the `action` is the name.
-    pub(super) fn ty_named(&mut self) -> Option<Type> {
-        self.ty_in(true)
-    }
-
-    fn ty_in(&mut self, name_follows: bool) -> Option<Type> {
-        if self.at(TokenKind::Keyword(Keyword::Function)) {
-            return self.function_type(name_follows);
-        }
+    fn ty_in(&mut self) -> Option<Type> {
         let mut name = self.ident()?;
         // a type of a module is written with the module in front: `shapes.Point`
         while self.at(TokenKind::Dot)
@@ -37,6 +27,9 @@ impl Parser<'_> {
                 name: format!("{}.{}", name.name, part.name),
                 span: name.span.to(part.span),
             };
+        }
+        if name.name == "Function" && self.at(TokenKind::Lt) {
+            return self.function_type(name);
         }
         let mut args = Vec::new();
         if self.at(TokenKind::Lt) {
@@ -51,51 +44,36 @@ impl Parser<'_> {
         })
     }
 
-    /// `function(i32, String) bool`. The parameters are types, each may be followed by a name that is not kept.
-    fn function_type(&mut self, name_follows: bool) -> Option<Type> {
-        let keyword = self.bump();
-        let name = Ident {
-            name: "function".to_string(),
-            span: keyword.span,
-        };
-        self.eat(TokenKind::LParen)?;
+    /// `Function<[i32, String], bool>`, with the cursor on the `<`. The parameters are a list of types in `[ ]`, or
+    /// `void` when there are none, and the type it gives back follows after a comma, absent when it gives nothing.
+    /// `Function<void>` is a mistake: a function that takes and gives nothing is written `Function`.
+    fn function_type(&mut self, name: Ident) -> Option<Type> {
+        self.eat(TokenKind::Lt)?;
         let mut args = Vec::new();
-        if !self.at(TokenKind::RParen) {
-            loop {
+        if self.eat(TokenKind::LBracket).is_some() {
+            args.push(self.ty()?);
+            while self.eat(TokenKind::Comma).is_some() {
                 args.push(self.ty()?);
-                if self.at(TokenKind::Ident) {
-                    self.bump();
-                }
-                if self.eat(TokenKind::Comma).is_none() {
-                    break;
-                }
+            }
+            self.eat(TokenKind::RBracket)?;
+        } else {
+            let void = self.ident()?;
+            if void.name != "void" {
+                return None;
             }
         }
-        self.eat(TokenKind::RParen)?;
-        let ret = self.function_ret(name_follows).map(Box::new);
-        let span = keyword.span.to(self.last_span());
+        let ret = match self.eat(TokenKind::Comma) {
+            Some(_) => Some(Box::new(self.ty()?)),
+            None if args.is_empty() => return None,
+            None => None,
+        };
+        self.eat(TokenKind::Gt)?;
+        let span = name.span.to(self.last_span());
         Some(Type {
             name,
             args,
             ret,
             span,
-        })
-    }
-
-    /// The type a function type gives back, when one is written.
-    fn function_ret(&mut self, name_follows: bool) -> Option<Type> {
-        let next = self.tok();
-        let starts_type = matches!(
-            next.kind,
-            TokenKind::Ident | TokenKind::Keyword(Keyword::Function)
-        );
-        if !starts_type || next.starts_line {
-            return None;
-        }
-        self.attempt(|p| {
-            let ret = p.ty()?;
-            // with a name after the type, the return type is the word before the name
-            (!name_follows || (p.at(TokenKind::Ident) && !p.tok().starts_line)).then_some(ret)
         })
     }
 

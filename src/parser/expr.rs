@@ -140,10 +140,7 @@ impl Parser<'_> {
                 // `<` really opens a list of types that the `(` follows. Otherwise it is the operator `<`.
                 TokenKind::Lt
                     if matches!(expr.kind, ExprKind::Name(_) | ExprKind::Member { .. })
-                        && matches!(
-                            self.tok_at(1).kind,
-                            TokenKind::Ident | TokenKind::Keyword(Keyword::Function)
-                        ) =>
+                        && matches!(self.tok_at(1).kind, TokenKind::Ident) =>
                 {
                     // `identity<f64>(2.5)` is a call, and `identity_of<i32>` followed by the end of the expression is
                     // the function with its type arguments filled in
