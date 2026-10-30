@@ -2,7 +2,7 @@
 // It is found because it is in the libraries folder next to raga.project.
 
 const hello = function(String name) String {
-    return String.format("hello %s", name)
+    return(String.format("hello %s", name))
 }
 
 export { hello }

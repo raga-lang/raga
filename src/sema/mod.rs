@@ -49,7 +49,7 @@ mod ty;
 #[cfg(test)]
 mod tests;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::ast::{NodeId, Program};
 use crate::diagnostics::Diagnostic;
@@ -69,7 +69,6 @@ pub struct Analysis {
     /// variable it uses, and the id of a declaration statement to the variable it creates.
     pub symbol_of: HashMap<NodeId, SymbolId>,
     /// The names that stand for a call of a function with no parameters, `echo`, keyed by the id of the name.
-    pub bare_calls: HashSet<NodeId>,
     /// The files that were imported, with what was found in each. `NodeId`s and symbols belong to one file, so the maps
     /// above are those of the file that was checked.
     pub modules: Vec<modules::ModuleReport>,

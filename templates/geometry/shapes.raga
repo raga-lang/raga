@@ -9,11 +9,11 @@ const Point = struct {
 }
 
 const circle_area = function(f64 radius) f64 {
-    return pi * radius * radius
+    return(pi * radius * radius)
 }
 
 const square = function(f64 side) f64 {      // private: not in the export call
-    return side * side
+    return(side * side)
 }
 
 export { pi, Point, circle_area }

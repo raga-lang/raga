@@ -4,7 +4,9 @@
 //!
 //! 1. `binary`: operators between two values, `a + b * c`, by **precedence climbing**.
 //! 2. `unary`: an operator in front of one value, `-x`, `!ok`, `~bits`, `&var`.
-//! 3. `postfix`: what follows a value, `.name`, `.*` and `(args)`, then `primary`: a literal, a name, a bracket.
+//! 3. `postfix`: what follows a value, `.name`, `.*`, `(args)` and a block, then `primary`: a literal, a name, a bracket.
+//!
+//! A call has parentheses, or its one argument is a block. A name alone is never a call.
 //!
 //! Postfix binds tighter than prefix, as the language says: `-p.*` is `-(p.*)`.
 //!
@@ -177,8 +179,11 @@ impl Parser<'_> {
                         None => break,
                     }
                 }
-                // `double base`: a call without parentheses, whose one argument is a name
-                TokenKind::Ident if is_callee(&expr) => expr = self.bare_call(expr),
+                // `double base`: a name is not an argument without parentheses, only a block is
+                TokenKind::Ident if is_callee(&expr) && !self.closed_call(&expr) => {
+                    let span = self.name_without_parentheses(&expr);
+                    expr = self.mk_expr(ExprKind::Error, span);
+                }
                 // `user { } select { } limit (1)`: after a call that ended with its block, a name continues the chain
                 TokenKind::Ident if self.closed_call(&expr) => expr = self.link(expr),
                 // `timed { ... }` and `timed |x| { ... }`: a call with no arguments and a block. After the bars a `{`
@@ -275,57 +280,45 @@ impl Parser<'_> {
         member
     }
 
-    /// `double base`, with the cursor on the name: the one argument is a name, with dots after it, and it can itself be
-    /// the name of a call without parentheses, so `a b c` is `a(b(c))`, or a name with a block, so `double sum { 1, 2 }` is
-    /// `double(sum({ 1, 2 }))`. Nothing else is an argument without parentheses;
-    /// `double base + 1` is `(double base) + 1`.
-    fn bare_call(&mut self, callee: Expr) -> Expr {
-        let mut operand = self.primary();
-        while self.at(TokenKind::Dot)
-            && self.tok_at(1).kind == TokenKind::Ident
-            && !self.tok().starts_line
-        {
-            self.bump();
-            let name = self.ident().expect("a name follows the dot");
-            let span = operand.span.to(name.span);
-            let kind = ExprKind::Member {
-                object: Box::new(operand),
-                name,
-            };
-            operand = self.mk_expr(kind, span);
-        }
-        let next = self.tok();
-        if next.kind == TokenKind::Ident && !(next.starts_line && self.nest == 0) {
-            operand = self.bare_call(operand);
-        } else if matches!(next.kind, TokenKind::LBrace | TokenKind::Pipe)
-            && let Some(trailer) = self.trailer(false)
-        {
-            // `double sum { 1, 2, 3 }`: the name with a block is a call too, and it is the argument of the first
-            let span = operand.span.to(self.last_span());
-            let kind = ExprKind::Call {
-                callee: Box::new(operand),
-                type_args: Vec::new(),
-                args: Vec::new(),
-                trailer: Some(trailer),
-                bare: true,
-            };
-            operand = self.mk_expr(kind, span);
-            while self.closed_call(&operand) && self.at(TokenKind::Ident) {
-                operand = self.link(operand);
-            }
-        }
-        let span = callee.span.to(operand.span);
-        let kind = ExprKind::Call {
-            callee: Box::new(callee),
-            type_args: Vec::new(),
-            args: vec![Arg {
-                name: None,
-                value: operand,
-            }],
-            trailer: None,
-            bare: true,
+    /// `double base`, with the cursor on the name: a name after a name is not a call. Only a block can be the argument
+    /// without parentheses, so the name is read and the mistake is reported with the way to write it.
+    fn name_without_parentheses(&mut self, callee: &Expr) -> Span {
+        let token = self.tok();
+        let callee_text = callee.span.slice(self.source).to_string();
+        let value = self.text(token).to_string();
+        self.bump();
+        let message = if matches!(
+            callee_text.as_str(),
+            "bool"
+                | "char"
+                | "String"
+                | "i8"
+                | "i16"
+                | "i32"
+                | "i64"
+                | "i128"
+                | "u8"
+                | "u16"
+                | "u32"
+                | "u64"
+                | "u128"
+                | "isize"
+                | "usize"
+                | "f32"
+                | "f64"
+                | "f128"
+        ) {
+            format!(
+                "`{value}` needs a value: a binding must be initialized when it is declared, write `{callee_text} {value} = ...`"
+            )
+        } else {
+            format!(
+                "a name is not an argument without parentheses, only a block is: write {callee_text}({value})"
+            )
         };
-        self.mk_expr(kind, span)
+        let span = callee.span.to(token.span);
+        self.error(span, message);
+        span
     }
 
     /// `(a, b = 2)`, with the cursor on the `(`.
@@ -623,7 +616,7 @@ fn unescape(rest: &str, quote: char) -> String {
     out
 }
 
-/// Can this expression be what a call without parentheses names: a name, or a name with dots after it?
+/// Can this expression be what a block follows as its one argument: a name, or a name with dots after it?
 fn is_callee(expr: &Expr) -> bool {
     match &expr.kind {
         ExprKind::Name(_) => true,

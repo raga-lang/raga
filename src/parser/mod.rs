@@ -460,7 +460,7 @@ impl<'a> Parser<'a> {
             let ty = p.ty_named()?;
             (p.at(TokenKind::Ident) && !p.tok().starts_line).then_some(ty)
         })?;
-        // `Type name = value` declares. Without the `=` it is not a declaration: `double base` is a call
+        // `Type name = value` declares. Without the `=` it is not a declaration: `double base` is a mistake the expression reports
         if self.tok_at(1).kind != TokenKind::Eq {
             self.pos = before;
             return None;
@@ -616,30 +616,55 @@ impl<'a> Parser<'a> {
     /// `break` and `continue`, with the number of further loops to leave when one is written: `break 1`.
     fn jump(&mut self) -> Stmt {
         let keyword = self.bump();
+        let word = self.text(keyword).to_string();
         let head = Ident {
-            name: self.text(keyword).to_string(),
+            name: word.clone(),
             span: keyword.span,
         };
         let head = self.mk_expr(ExprKind::Name(head), keyword.span);
         let next = self.tok();
         let mut args = Vec::new();
-        let ends = next.starts_line
-            || matches!(
-                next.kind,
-                TokenKind::Semi | TokenKind::RBrace | TokenKind::Eof
-            );
-        if !ends {
-            args.push(Arg {
-                name: None,
-                value: self.expr(),
-            });
+        let mut trailer = None;
+        let same_line = !next.starts_line;
+        if next.kind == TokenKind::LParen && same_line {
+            // `return(value)`, `return()`, `break(1)`
+            args = self.arguments();
+        } else if matches!(next.kind, TokenKind::LBrace | TokenKind::Pipe) && same_line {
+            // `return { 1, 2 }`, `return |x| { }`: a block is the one argument, no parentheses
+            trailer = self.trailer(false);
+            if trailer.is_some() && word != "return" {
+                self.error(
+                    next.span,
+                    format!("`{word}` takes a number in parentheses, write {word}(1)"),
+                );
+                trailer = None;
+            }
+        } else {
+            // `return`, `break`, `return value`: a call needs its parentheses
+            let ends = !same_line
+                || matches!(
+                    next.kind,
+                    TokenKind::Semi | TokenKind::RBrace | TokenKind::Eof
+                );
+            let message = if ends {
+                format!("`{word}` is a call: write {word}()")
+            } else {
+                format!("`{word}` is a call: write {word}(value)")
+            };
+            self.error(keyword.span, message);
+            if !ends {
+                args.push(Arg {
+                    name: None,
+                    value: self.expr(),
+                });
+            }
         }
         let span = keyword.span.to(self.last_span());
         let kind = ExprKind::Call {
             callee: Box::new(head),
             type_args: Vec::new(),
             args,
-            trailer: None,
+            trailer,
             bare: false,
         };
         let call = self.mk_expr(kind, span);

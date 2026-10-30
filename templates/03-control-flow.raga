@@ -6,6 +6,8 @@
 // A block always has braces, and a condition is always in parentheses.
 // return belongs to functions only (04-functions, which comes next): inside a function it leaves the function, from any
 // depth of loops and ifs. break and continue belong to loops only.
+// return, break and continue are calls like every other: return(value), return(), break(), break(1), continue(). The
+// parentheses are always written, and a word alone is not a call. return also takes a block as its one argument, return { 1, 2 }.
 // This template uses the basic types of 01-basics. The collections that the loops go over (List, Array, Set, Map) are created
 // with literals as in 01-basics section 6, and are explained in 02-data-structures, which comes before this template.
 // return inside a loop, and leaving two loops at once from a function, are shown in 04-functions (loops and functions).
@@ -161,7 +163,7 @@ while (never > 5) {
 // loop has no condition, it runs until a break (or a return inside a function).
 let guess = 1
 loop {
-    if (guess * guess > 50) { break }
+    if (guess * guess > 50) { break() }
     guess = guess + 1
 }
 // guess is now 8
@@ -172,7 +174,7 @@ loop {
 // A loop that reads input until the user types quit.
 // loop {
 //     const line = read_line()
-//     if (line.equals("quit")) { break }
+//     if (line.equals("quit")) { break() }
 //     print(line)
 // }
 
@@ -280,20 +282,20 @@ for (range(0, letters.len())) |at| {
 // ============================================================
 
 // break leaves the innermost loop. continue skips the rest of the block and starts the next pass.
-// Both work in while, loop and for. Both take an optional number of further loops to leave, 0 when it is left out: break is
-// break 0 and leaves one loop, see section 9 for break 1 and more.
+// Both work in while, loop and for. Both are calls and take an optional number of further loops to leave, 0 when it is left
+// out: break() is break(0) and leaves one loop, see section 9 for break(1) and more.
 let first_big = 0
 for (scores) |score| {
     if (score > 80) {
         first_big = score
-        break                             // stop at the first score above 80
+        break()                             // stop at the first score above 80
     }
 }
 // first_big is 85
 
 let evens_total = 0
 for (range(0, 10)) |i| {
-    if (i % 2 == 1) { continue }          // skip the odd numbers
+    if (i % 2 == 1) { continue() }          // skip the odd numbers
     evens_total = evens_total + i
 }
 // evens_total is 20
@@ -303,15 +305,15 @@ let step = 0
 let stepped = 0
 while (step < 5) {
     step = step + 1
-    if (step == 3) { continue }
+    if (step == 3) { continue() }
     stepped = stepped + 1                 // runs for 1, 2, 4, 5
 }
 
 // break and continue only exist inside a loop.
-// break                                  // ERROR: break outside a loop
-// if (true) { continue }                 // ERROR: continue outside a loop
+// break()                                // ERROR: break outside a loop
+// if (true) { continue() }                 // ERROR: continue outside a loop
 
-// Without a number they apply to the innermost loop. To leave or continue more loops, give a number: break 1, continue 2.
+// Without a number they apply to the innermost loop. To leave or continue more loops, give a number: break(1), continue(2).
 // That needs no label, see section 9. A function with the loops can also return, see 04-functions section 13.
 
 
@@ -327,7 +329,7 @@ let first_even = 0
 for (candidates) |n| {
     if (n % 2 == 0) {
         first_even = n
-        break                                 // found: the else block is skipped
+        break()                                 // found: the else block is skipped
     }
 } else {
     first_even = -1                           // the list ran out and nothing was found
@@ -345,12 +347,12 @@ while (attempts_made < 3) {
 
 // Rules:
 //   - else runs when the loop ends without a break. A loop over an empty collection ends at once, so its else runs.
-//   - A break that leaves the loop skips the else, also break 1 and more that leave it on the way out. continue 1 and
+//   - A break that leaves the loop skips the else, also break(1) and more that leave it on the way out. continue(1) and
 //     more, which leave the loop to continue an outer one, skip it too.
 //   - A loop with no condition only ends with a break, so an else after it would never run. That is an error.
 //   - The else block is outside the loop: a break in it belongs to the loop around the whole statement.
 //   - else must start on the line of the closing brace, like every link of a chain.
-// loop { break } else { }                  // ERROR: a loop with no condition only ends with break, so its else would never run
+// loop { break() } else { }                  // ERROR: a loop with no condition only ends with break, so its else would never run
 
 
 // ============================================================
@@ -370,7 +372,7 @@ for (range(1, 4)) |row| {
 let pairs = 0
 for (range(0, 3)) |outer| {
     for (range(0, 3)) |inner| {
-        if (inner > outer) { break }      // leaves the inner loop, the outer one carries on
+        if (inner > outer) { break() }      // leaves the inner loop, the outer one carries on
         pairs = pairs + 1
     }
 }
@@ -379,8 +381,8 @@ for (range(0, 3)) |outer| {
 // Names in nested loops must differ, or the inner name hides the outer one.
 
 // LEAVING MORE THAN ONE LOOP. break and continue take a number: the number of loops to leave besides the innermost one. It is
-// written after the word, as one whole number, and it is 0 when it is left out. break is break 0 and leaves the innermost loop,
-// break 1 leaves it and the loop around it, break 2 leaves three loops, and so on.
+// written in the parentheses, as one whole number, and it is 0 when it is left out. break() is break(0) and leaves the innermost loop,
+// break(1) leaves it and the loop around it, break(2) leaves three loops, and so on.
 let found_x = 0
 let found_y = 0
 for (range(1, 10)) |x| {
@@ -388,17 +390,17 @@ for (range(1, 10)) |x| {
         if (x * y == 42) {
             found_x = x
             found_y = y
-            break 1                       // leaves the inner loop and the outer loop
+            break(1)                       // leaves the inner loop and the outer loop
         }
     }
 }
 // found_x is 6 and found_y is 7, and the loops stopped at the first pair
 
-// continue works the same way: continue 1 stops the inner loop and starts the next pass of the loop around it.
+// continue works the same way: continue(1) stops the inner loop and starts the next pass of the loop around it.
 let sums = 0
 for (range(1, 4)) |row| {
     for (range(1, 4)) |col| {
-        if (col > row) { continue 1 }     // the rest of this row is skipped, the next row starts
+        if (col > row) { continue(1) }     // the rest of this row is skipped, the next row starts
         sums = sums + 1
     }
 }
@@ -406,9 +408,9 @@ for (range(1, 4)) |row| {
 
 // The number is a whole number written in the code, not a variable, and it cannot be larger than the number of loops around
 // the statement, minus one. A break or continue in a case of match or switch counts the loop around that statement.
-// break 2                                // ERROR: break 2 leaves 3 loops, but only 2 loops surround it (inside the loops above)
-// break found_x                          // ERROR: the number of loops to leave is a whole number written in the code
-// break -1                               // ERROR: the number of loops to leave cannot be negative
+// break(2)                                // ERROR: break(2) leaves 3 loops, but only 2 loops surround it (inside the loops above)
+// break(found_x)                        // ERROR: the number of loops to leave is a whole number written in the code
+// break(-1)                             // ERROR: the number of loops to leave cannot be negative
 // When the loops are inside a function, return leaves all of them at once, see 04-functions section 13 (has_pair).
 
 
@@ -475,7 +477,7 @@ while (remaining > 1) {
 let attempts = 0
 loop {
     attempts = attempts + 1
-    if (attempts >= 3) { break }
+    if (attempts >= 3) { break() }
 }
 
 // Looping over the results of a function, one at a time (an iterator), is not a loop feature. It is a pattern of structs with

@@ -131,7 +131,7 @@ add_ten(numbers.clone())                   // numbers is unchanged, the clone ch
 const bumped = function(i32 n) i32 {
     let local = n                         // n is a copy of the caller's number
     local = local + 1
-    return local
+    return(local)
 }
 let level = 1
 const next = bumped(level)                // 2, level is still 1
@@ -140,14 +140,14 @@ const next = bumped(level)                // 2, level is still 1
 // A non-primitive value created inside a function stays alive after the call, because the caller now refers to it.
 const make_list = function() List<i32> {
     const made = [1, 2, 3]
-    return made
+    return(made)
 }
 const kept = make_list()                   // still valid: kept refers to the List made inside
 
 // A default parameter value is created again on every call, so calls never share it.
 const collect = function(i32 item, List<i32> into = List<i32>()) List<i32> {
     into.push(item)
-    return into
+    return(into)
 }
 const c1 = collect(1)                     // 1
 const c2 = collect(2)                     // 2, not 1, 2: each call got a new List
@@ -206,9 +206,9 @@ const make_total = function() function(i32) i32 {
     let total = 0                         // a primitive, but the function below uses it
     const add = function(i32 amount) i32 {
         total = total + amount
-        return total
+        return(total)
     }
-    return add                            // total is still alive, it now belongs to add
+    return(add)                            // total is still alive, it now belongs to add
 }
 const my_total = make_total()
 const t1 = my_total(5)                    // 5
@@ -314,7 +314,7 @@ wp.*.push("c")                    // .* gives the List, which is then changed in
 // The obvious case is rejected at compile time:
 // const leak = function() ptr<i32> {
 //     i32 local = 1
-//     return &local                      // ERROR: the address of a local variable cannot be returned
+//     return(&local)                      // ERROR: the address of a local variable cannot be returned
 // }
 // Storing the address somewhere that outlives the block is not checked and is your responsibility:
 ptr<i32> outer = null
@@ -469,7 +469,7 @@ const loose_align = alignof<Loose>()       // 4
 //     throws an Error that can be caught, see 06-errors.
 //   - The integer types have fixed sizes, so a value that does not fit is truncated by a cast and never grows,
 //     see 01-basics.
-// const forever = function(i32 n) i32 { return forever(n + 1) }   // runs until the stack is full
+// const forever = function(i32 n) i32 { return(forever(n + 1)) }   // runs until the stack is full
 
 
 // ============================================================
@@ -485,10 +485,10 @@ const Slice = struct {
     usize length
 
     const get = function(usize index) i32 {
-        return this.source.get(this.start + index)
+        return(this.source.get(this.start + index))
     }
     const len = function() usize {
-        return this.length
+        return(this.length)
     }
 }
 

@@ -37,7 +37,6 @@ pub(super) struct FileState {
     diagnostics: Vec<Diagnostic>,
     expr_types: HashMap<NodeId, Ty>,
     symbol_of: HashMap<NodeId, super::scope::SymbolId>,
-    bare_calls: std::collections::HashSet<NodeId>,
     exhaustive: std::collections::HashSet<NodeId>,
     file: Option<PathBuf>,
     exported: Option<Vec<(Ident, super::scope::SymbolId)>>,
@@ -238,7 +237,6 @@ impl Checker {
             diagnostics: std::mem::take(&mut self.diagnostics),
             expr_types: std::mem::take(&mut self.expr_types),
             symbol_of: std::mem::take(&mut self.symbol_of),
-            bare_calls: std::mem::take(&mut self.bare_calls),
             exhaustive: std::mem::take(&mut self.exhaustive),
             file: self.file.replace(path.to_path_buf()),
             exported: self.exported.take(),
@@ -250,7 +248,6 @@ impl Checker {
         self.diagnostics = saved.diagnostics;
         self.expr_types = saved.expr_types;
         self.symbol_of = saved.symbol_of;
-        self.bare_calls = saved.bare_calls;
         self.exhaustive = saved.exhaustive;
         self.file = saved.file;
         self.exported = saved.exported;

@@ -41,16 +41,8 @@ impl Checker {
                 type_args,
                 args,
                 trailer,
-                bare,
-            } => self.call(
-                expr,
-                callee,
-                type_args,
-                args,
-                trailer.as_ref(),
-                *bare,
-                expected,
-            ),
+                ..
+            } => self.call(expr, callee, type_args, args, trailer.as_ref(), expected),
             ExprKind::TypeApply { target, type_args } => self.type_apply(expr, target, type_args),
             ExprKind::Param { .. } => {
                 self.error(
@@ -145,7 +137,7 @@ impl Checker {
                 return Ty::Error;
             }
             return match self.scopes.symbol(symbol).ty.clone() {
-                Ty::Function(f) => self.function_name(expr, name, f, expected),
+                Ty::Function(f) => self.function_name(name, f, expected),
                 ty => ty,
             };
         }

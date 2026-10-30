@@ -28,7 +28,7 @@ const check = function(bool condition) {
 }
 
 const summary = function() String {
-    return String.format("%d passed, %d failed", tally.passed, tally.failed)
+    return(String.format("%d passed, %d failed", tally.passed, tally.failed))
 }
 
 export { describe, it, check, summary }

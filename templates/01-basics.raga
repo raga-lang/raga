@@ -612,10 +612,11 @@ let a1 = 1; let a2 = 2; a1 = a1 + a2
 //   const wrong = 1
 //       + 2                     // two statements: const wrong = 1, then +2 (a result that is dropped)
 // A keyword that has no value to read has no parentheses: else { }, try { }, finally { }, loop { }. A keyword that reads
-// a value puts it in parentheses: if (x), while (x), for (items), match (x), case (x). catch |e| and else follow the
-// same shape, with a name between pipes when they hand a value to the block.
-// A call to your own function may drop its parentheses when it has one simple operand (double 5, double base) or only a
-// trailing block (timed { }), see 04-functions section 12. A String, a collection literal or an operator needs parentheses.
+// a value puts it in parentheses: if (x), while (x), for (items), match (x), case (x), return(x), break(1). catch |e| and
+// else follow the same shape, with a name between pipes when they hand a value to the block.
+// return, break and continue are calls like the others: return() and break() have empty parentheses, a word alone is not a call.
+// A call has parentheses, unless its one argument is a block (timed { }), see 04-functions section 12. A name without
+// parentheses is the function itself, not a call: answer is the function, answer() is the call.
 // The last argument of a call can be written as a block after the parentheses when it is a function, an Array or a struct
 // (04-functions section 16).
 // Every type head (struct, union, enum, class, interface, trait) holds its members in braces. Parentheses are for

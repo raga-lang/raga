@@ -26,7 +26,6 @@ pub(super) struct Checker {
     pub(super) fns: Vec<FnCtx>,
     /// Functions whose return type is being worked out from their body: they cannot call themselves yet.
     pub(super) pending: HashSet<SymbolId>,
-    pub(super) bare_calls: HashSet<NodeId>,
     /// The types the program defines, and `Optional` and `Result`.
     pub(super) types: Vec<TypeDef>,
     /// The type of `this`, set while the body of a method is about to be read.
@@ -71,7 +70,6 @@ impl Checker {
             type_params: Vec::new(),
             fns: Vec::new(),
             pending: HashSet::new(),
-            bare_calls: HashSet::new(),
             types: builtin_types(),
             method_this: None,
             exhaustive: HashSet::new(),
@@ -103,7 +101,6 @@ impl Checker {
             symbols: self.scopes.symbols,
             expr_types: self.expr_types,
             symbol_of: self.symbol_of,
-            bare_calls: self.bare_calls,
             modules: self.reports,
         }
     }
@@ -125,7 +122,17 @@ impl Checker {
             StmtKind::Decl(decl) => self.declaration(stmt.id, decl, &stmt.attrs),
             StmtKind::Assign(assign) => self.assignment(assign),
             StmtKind::Expr(expr) => {
-                self.expr(expr, None);
+                let ty = self.expr(expr, None);
+                // a name is the function, never a call: as a whole statement it does nothing
+                if matches!(ty, Ty::Function(_))
+                    && matches!(expr.kind, ExprKind::Name(_) | ExprKind::Member { .. })
+                {
+                    let text = dotted_name(expr);
+                    self.error(
+                        expr.span,
+                        format!("`{text}` is a function and this does not call it: write {text}()"),
+                    );
+                }
             }
             StmtKind::Block(stmts) => {
                 self.scopes.push(declared_names(stmts));
@@ -682,5 +689,14 @@ pub(super) fn is_untyped(expr: &Expr) -> bool {
                 && is_untyped(rhs)
         }
         _ => false,
+    }
+}
+
+/// `shapes.circle_area`: a name with the names after its dots.
+fn dotted_name(expr: &Expr) -> String {
+    match &expr.kind {
+        ExprKind::Name(name) => name.name.clone(),
+        ExprKind::Member { object, name } => format!("{}.{}", dotted_name(object), name.name),
+        _ => String::new(),
     }
 }

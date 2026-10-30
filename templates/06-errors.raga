@@ -20,9 +20,9 @@
 
 const find_index = function(List<i32> items, i32 target) Optional<usize> {
     for (items) |item, index| {
-        if (item == target) { return Optional.Some(index) }
+        if (item == target) { return(Optional.Some(index)) }
     }
-    return Optional.None
+    return(Optional.None)
 }
 
 // The result is read with match, every variant must be handled.
@@ -52,8 +52,8 @@ match (find_index(numbers, 8)) {
 // here the return type of the function (see 05-structs-enums-unions).
 
 const divide = function(i32 top, i32 bottom) Result<i32, String> {
-    if (bottom == 0) { return Result.Err("divide by zero") }
-    return Result.Ok(top / bottom)
+    if (bottom == 0) { return(Result.Err("divide by zero")) }
+    return(Result.Ok(top / bottom))
 }
 
 let outcome = 0
@@ -66,15 +66,15 @@ match (divide(10, 2)) {
 // An enum as the reason lets callers match on it.
 const ParseError = enum { const Empty = 0; const NotANumber = 1; const TooBig = 2 }
 const parse_age = function(String text) Result<i32, ParseError> {
-    if (text.len() == 0) { return Result.Err(ParseError.Empty) }
-    return Result.Ok(30)
+    if (text.len() == 0) { return(Result.Err(ParseError.Empty)) }
+    return(Result.Ok(30))
 }
 
 // A function that calls another Result function passes the failure on by matching and returning it.
 const half_of = function(i32 top, i32 bottom) Result<i32, String> {
     match (divide(top, bottom)) {
-        case (Ok)  |ok|  { return Result.Ok(ok.value / 2) }
-        case (Err) |bad| { return Result.Err(bad.reason) }
+        case (Ok)  |ok|  { return(Result.Ok(ok.value / 2)) }
+        case (Err) |bad| { return(Result.Err(bad.reason)) }
     }
 }
 
@@ -93,11 +93,11 @@ const safe = divide(10, 0).unwrapOr(-1)         // -1: the fallback is used when
 // 3. Handle it right there: or_else takes a block that runs only on a failure and gives the replacement value. The block
 //    of a Result gets the reason, and the block of an Optional gets nothing. return gives the value back to or_else.
 const rescued = divide(10, 0).or_else |reason| {
-    if (reason.contains("zero")) { return 0 }   // the block can look at the reason before it chooses the value
-    return -1
+    if (reason.contains("zero")) { return(0) }   // the block can look at the reason before it chooses the value
+    return(-1)
 }
 const found_or_zero = find_index(numbers, 99).or_else {
-    return 0                                    // None: no reason to look at
+    return(0)                                    // None: no reason to look at
 }
 // A return in the block leaves the block, as in every callback (04-functions section 10), so a block cannot return from
 // the function around it. To pass a failure on to your own caller, use or_throw, or return the Result itself.
@@ -199,7 +199,7 @@ for ([10, -1, 20, 200]) |age| {
         check_age(age)
         valid = valid + 1
     } catch |e| {
-        continue                                   // skip the bad ones
+        continue()                                   // skip the bad ones
     }
 }
 // valid is 2
@@ -208,9 +208,9 @@ for ([10, -1, 20, 200]) |age| {
 const lookup = function(i32 age) String {
     try {
         check_age(age)
-        return "valid"
+        return("valid")
     } catch |e| {
-        return e.message
+        return(e.message)
     } finally {
         print("checked")                   // runs on both paths
     }

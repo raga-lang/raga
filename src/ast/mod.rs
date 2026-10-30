@@ -158,7 +158,7 @@ pub enum ExprKind {
         args: Vec<Arg>,
         /// What is written after the parentheses: `|item| { ... }`.
         trailer: Option<Trailer>,
-        /// True when there were no parentheses: `double base` is `double(base)`.
+        /// True when there were no parentheses: a block is the one argument, `timed { }`.
         bare: bool,
     },
     /// A parameter in the head of a function definition: `Type name`, `Type name = default`, `Type ...name`. It is an

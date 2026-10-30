@@ -21,7 +21,6 @@ impl Checker {
         type_args: &[ast::Type],
         args: &[Arg],
         trailer: Option<&Trailer>,
-        bare: bool,
         expected: Option<&Ty>,
     ) -> Ty {
         if let ExprKind::Name(name) = &callee.kind {
@@ -56,7 +55,7 @@ impl Checker {
         }
         match &callee.kind {
             ExprKind::Name(name) => {
-                self.call_name(call, callee, name, type_args, args, trailer, bare, expected)
+                self.call_name(call, callee, name, type_args, args, trailer, expected)
             }
             ExprKind::Member { object, name } => {
                 self.call_member(call, object, name, type_args, args, trailer, expected)
@@ -106,7 +105,6 @@ impl Checker {
         type_args: &[ast::Type],
         args: &[Arg],
         trailer: Option<&Trailer>,
-        bare: bool,
         expected: Option<&Ty>,
     ) -> Ty {
         let text = name.name.as_str();
@@ -207,20 +205,42 @@ impl Checker {
             }
         };
         if let Some(target) = target {
-            // `u8 late` is not a conversion: a type, then a name, then nothing to give it a value
-            if bare
-                && let [Arg { value, .. }] = args
-                && let ExprKind::Name(declared) = &value.kind
-            {
-                self.error(
-                    declared.span,
-                    format!(
-                        "`{0}` needs a value: a binding must be initialized when it is declared, write `{text} {0} = ...`",
-                        declared.name
-                    ),
-                );
-                return target;
+            return self.conversion(call, target, args);
+        }
+        if !type_args.is_empty() {
+            self.error(
+                call.span,
+                "type arguments can only be given to Array, List, Set, Map, Tuple and generic functions",
+            );
+            self.check_args(args);
+            return Ty::Error;
+        }
+        let is_builtin = IntTy::from_name(text).is_some()
+            || FloatTy::from_name(text).is_some()
+            || matches!(text, "bool" | "char" | "String")
+            || builtins::global_function(text).is_some()
+            || builtins::reserved(text).is_some();
+        if trailer.is_some() && is_builtin {
+            self.error(
+                call.span,
+                format!("`{text}` takes no block after its arguments"),
+            );
+            self.check_args(args);
+            return Ty::Error;
+        }
+        let target = if let Some(int) = IntTy::from_name(text) {
+            Some(Ty::Int(int))
+        } else if let Some(float) = FloatTy::from_name(text) {
+            Some(Ty::Float(float))
+        } else {
+            match text {
+                "bool" => Some(Ty::Bool),
+                "char" => Some(Ty::Char),
+                "String" => Some(Ty::String),
+                _ => None,
             }
+        };
+        if let Some(target) = target {
             return self.conversion(call, target, args);
         }
         if let Some(sig) = builtins::global_function(text) {

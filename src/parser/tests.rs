@@ -328,8 +328,13 @@ fn a_binding_must_have_a_value() {
             "`late` needs a value: a binding must be initialized when it is declared, write `late = ...`"
         ]
     );
-    // without the `=` it is not a declaration: a type and a name are a call with one argument, and the checker says what is wrong
-    assert_eq!(tree("u8 late"), "(call u8 late)");
+    // without the `=` it is not a declaration: a type and a name are not a call, a name is not an argument without parentheses
+    assert_eq!(
+        errors("u8 late"),
+        [
+            "`late` needs a value: a binding must be initialized when it is declared, write `u8 late = ...`"
+        ]
+    );
 }
 
 #[test]
@@ -529,7 +534,7 @@ fn loops_are_calls() {
         tree("while (a < 3) { a += 1 }"),
         "(call while (< a 3) {(+= a 1)})"
     );
-    assert_eq!(tree("loop { break }"), "(call loop {(call break)})");
+    assert_eq!(tree("loop { break() }"), "(call loop {(call break)})");
     assert_eq!(
         tree("for (xs) |x| { print(x) } else { y = 1 }"),
         "(chain (call for xs |x| {(call print x)}) (call else {(= y 1)}))"
@@ -541,13 +546,27 @@ fn loops_are_calls() {
 }
 
 #[test]
-fn break_and_continue_take_a_number_after_the_word() {
-    assert_eq!(tree("break"), "(call break)");
-    assert_eq!(tree("break 1"), "(call break 1)");
-    assert_eq!(tree("continue 2"), "(call continue 2)");
-    assert_eq!(tree("if (a) { continue }"), "(call if a {(call continue)})");
-    assert_eq!(tree("break found"), "(call break found)");
-    assert_eq!(tree("break -1"), "(call break (neg 1))");
+fn break_and_continue_take_a_number_in_parentheses() {
+    assert_eq!(tree("break()"), "(call break)");
+    assert_eq!(tree("break(1)"), "(call break 1)");
+    assert_eq!(tree("continue(2)"), "(call continue 2)");
+    assert_eq!(
+        tree("if (a) { continue() }"),
+        "(call if a {(call continue)})"
+    );
+    assert_eq!(tree("break(found)"), "(call break found)");
+    assert_eq!(tree("break(-1)"), "(call break (neg 1))");
+    // a jump is a call, so the parentheses are not optional
+    assert_eq!(errors("break"), ["`break` is a call: write break()"]);
+    assert_eq!(errors("break 1"), ["`break` is a call: write break(value)"]);
+    assert_eq!(
+        errors("if (a) { continue }"),
+        ["`continue` is a call: write continue()"]
+    );
+    assert_eq!(
+        errors("break { 1 }"),
+        ["`break` takes a number in parentheses, write break(1)"]
+    );
 }
 
 #[test]
@@ -589,7 +608,7 @@ fn a_branch_that_is_not_written_properly_is_reported() {
 #[test]
 fn a_function_is_the_call_of_function_with_parameters_as_arguments() {
     assert_eq!(
-        tree("const add = function(i32 a, i32 b) i32 { return a + b }"),
+        tree("const add = function(i32 a, i32 b) i32 { return(a + b) }"),
         "(const add (call function (param i32 a) (param i32 b) -> i32 {(call return (+ a b))}))"
     );
     // no parameters, no return type
@@ -610,7 +629,7 @@ fn a_parameter_can_have_a_default_and_the_last_can_be_variadic() {
 #[test]
 fn a_generic_function_names_its_type_parameters_after_function() {
     assert_eq!(
-        tree("const id = function<T, U>(T v, U w) T { return v }"),
+        tree("const id = function<T, U>(T v, U w) T { return(v) }"),
         "(const id (call function<T, U> (param T v) (param U w) -> T {(call return v)}))"
     );
 }
@@ -631,7 +650,7 @@ fn a_function_type_is_written_like_the_head_of_a_function() {
     // a callback parameter, with and without a return type
     assert_eq!(
         tree(
-            "const f = function(function(i32) i32 g, function() work) function(i32) i32 { return g }"
+            "const f = function(function(i32) i32 g, function() work) function(i32) i32 { return(g) }"
         ),
         "(const f (call function (param function(i32) i32 g) (param function() work) -> function(i32) i32 {(call return g)}))"
     );
@@ -643,42 +662,64 @@ fn a_function_type_is_written_like_the_head_of_a_function() {
 
 #[test]
 fn return_gives_a_value_or_nothing() {
-    assert_eq!(tree("return"), "(call return)");
-    assert_eq!(tree("return a + 1"), "(call return (+ a 1))");
-    assert_eq!(tree("if (a) { return }"), "(call if a {(call return)})");
+    assert_eq!(tree("return()"), "(call return)");
+    assert_eq!(tree("return(a + 1)"), "(call return (+ a 1))");
+    assert_eq!(tree("if (a) { return() }"), "(call if a {(call return)})");
+    // `return (a + 1) * 2` is no longer an expression: the parentheses are the arguments
+    assert_eq!(tree("return((a + 1) * 2)"), "(call return (* (+ a 1) 2))");
+    assert_eq!(tree("return((1, 2))"), "(call return (tuple 1 2))");
+    // a block is the one argument that needs no parentheses
+    assert_eq!(tree("return { 1, 2 }"), "(call return {(array 1 2)})");
+    assert_eq!(
+        tree("return |x| { print(x) }"),
+        "(call return |x| {(call print x)})"
+    );
+    assert_eq!(errors("return"), ["`return` is a call: write return()"]);
+    assert_eq!(
+        errors("return a"),
+        ["`return` is a call: write return(value)"]
+    );
 }
 
 #[test]
 fn a_statement_can_follow_a_block_on_its_line() {
     assert_eq!(
-        tree("if (n == 0) { return true } return f(n - 1)"),
+        tree("if (n == 0) { return(true) } return(f(n - 1))"),
         "(call if (== n 0) {(call return true)})\n(call return (call f (- n 1)))"
     );
 }
 
 #[test]
-fn a_call_can_leave_out_the_parentheses_when_its_argument_is_a_name() {
-    assert_eq!(tree("double base"), "(call double base)");
-    assert_eq!(tree("double user.age"), "(call double (. user age))");
-    // the calls nest to the right
-    assert_eq!(tree("a b c"), "(call a (call b c))");
-    // the argument is the name only
+fn a_name_is_not_an_argument_without_parentheses() {
     assert_eq!(
-        tree("const x = double base + 1"),
+        errors("double base"),
+        ["a name is not an argument without parentheses, only a block is: write double(base)"]
+    );
+    assert_eq!(tree("double(base)"), "(call double base)");
+    assert_eq!(tree("double(user.age)"), "(call double (. user age))");
+    assert_eq!(tree("a(b(c))"), "(call a (call b c))");
+    assert_eq!(
+        tree("const x = double(base) + 1"),
         "(const x (+ (call double base) 1))"
     );
+    // a minus after a name is the operator
     assert_eq!(tree("const x = double -base"), "(const x (- double base))");
-    assert_eq!(tree("nums.push x"), "(call (. nums push) x)");
-    // the argument can be a name with a block, which is a call
+    assert_eq!(tree("nums.push(x)"), "(call (. nums push) x)");
     assert_eq!(
-        tree("const t = double sum { 1, 2, 3 }"),
+        errors("nums.push x"),
+        ["a name is not an argument without parentheses, only a block is: write nums.push(x)"]
+    );
+    // a block is the one argument that needs no parentheses
+    assert_eq!(
+        tree("const t = double(sum { 1, 2, 3 })"),
         "(const t (call double (call sum {(array 1 2 3)})))"
     );
     assert_eq!(
-        tree("double sum |n| { print(n) }"),
+        tree("double(sum |n| { print(n) })"),
         "(call double (call sum |n| {(call print n)}))"
     );
-    assert_eq!(tree("a b c { 1 }"), "(call a (call b (call c {1})))");
+    // a name alone is the function, never a call
+    assert_eq!(tree("const g = answer"), "(const g answer)");
 }
 
 #[test]
@@ -702,8 +743,8 @@ fn a_value_written_out_needs_parentheses() {
     assert_eq!(found.len(), 1, "{found:?}");
     assert!(found[0].contains("write double(5)"), "{found:?}");
     assert!(errors("print \"hi\"")[0].contains("write print(\"hi\")"));
-    // a name with a block is a call, and it is the argument: `base` is no function, which the checker says
-    assert_eq!(tree("double base { }"), "(call double (call base {}))");
+    // a name after a name is not an argument, even when a block follows it
+    assert!(errors("double base { }")[0].contains("write double(base)"));
 }
 
 #[test]
@@ -801,7 +842,7 @@ fn a_name_after_a_block_on_another_line_is_a_new_statement() {
 #[test]
 fn a_chain_can_continue_a_call_that_is_an_argument() {
     assert_eq!(
-        tree("double sum { 1, 2 } select { 3 }"),
+        tree("double(sum { 1, 2 } select { 3 })"),
         "(call double (call (. (call sum {(array 1 2)}) select) {3}))"
     );
 }
@@ -860,7 +901,7 @@ fn a_type_takes_type_parameters_after_its_head() {
 fn a_method_is_a_function_in_the_body_and_this_is_a_name() {
     assert_eq!(
         tree(
-            "const C = struct {\n  i32 value\n  const get = function() i32 { return this.value }\n}"
+            "const C = struct {\n  i32 value\n  const get = function() i32 { return(this.value) }\n}"
         ),
         "(const C (call struct {(param i32 value) (const get (call function -> i32 {(call return (. this value))}))}))"
     );
@@ -936,11 +977,11 @@ fn try_is_not_a_value() {
 #[test]
 fn a_helper_with_a_block_can_be_called_on_a_result() {
     assert_eq!(
-        tree("const r = divide(10, 0).or_else |reason| { return 0 }"),
+        tree("const r = divide(10, 0).or_else |reason| { return(0) }"),
         "(const r (call (. (call divide 10 0) or_else) |reason| {(call return 0)}))"
     );
     assert_eq!(
-        tree("const r = find(xs).or_else { return 0 }"),
+        tree("const r = find(xs).or_else { return(0) }"),
         "(const r (call (. (call find xs) or_else) {(call return 0)}))"
     );
 }

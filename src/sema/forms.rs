@@ -157,7 +157,7 @@ impl Checker {
                 self.check_arguments(seg.args);
             }
             "break" | "continue" => self.jump(seg),
-            "return" => self.return_statement(seg.call, seg.args),
+            "return" => self.return_statement(seg.call, seg.args, seg.trailer),
             "throw" => self.throw_form(seg),
             "try" | "catch" | "finally" => self.try_part(seg, continues),
             _ => unreachable!("is_form lists the heads"),
@@ -390,7 +390,7 @@ impl Checker {
                     self.error(
                         arg.value.span,
                         format!(
-                            "{head} {more} leaves {leaves} loop{}, but only {loops} loop{} surround{} it",
+                            "{head}({more}) leaves {leaves} loop{}, but only {loops} loop{} surround{} it",
                             if leaves == 1 { "" } else { "s" },
                             if loops == 1 { "" } else { "s" },
                             if loops == 1 { "s" } else { "" },

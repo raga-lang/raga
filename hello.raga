@@ -97,7 +97,7 @@ const Counter = struct {
     }
 
     const get = function() i32 {
-        return this.value
+        return(this.value)
     }
 }
 let c = Counter(value = 0)
@@ -141,9 +141,9 @@ let bits_view = Bits32(i = 0)      // a union is created by naming the field to 
 // match is a statement. A case gives a value back with an explicit return, and |name| is the variant's data.
 const area = function(Shape s) f64 {
     match (s) {
-        case (Circle) |c| { return 3.14 * c.radius * c.radius }
-        case (Rect)   |r| { return r.w * r.h }
-        case (Empty)      { return 0.0 }
+        case (Circle) |c| { return(3.14 * c.radius * c.radius) }
+        case (Rect)   |r| { return(r.w * r.h) }
+        case (Empty)      { return(0.0) }
     }
 }
 const a1 = area(s1)
@@ -153,31 +153,31 @@ const a1 = area(s1)
 // without a return statement returns void. A function can be declared inside another function and then uses the names
 // around it (a closure), and there is no overloading of plain functions. See templates/04-functions.raga.
 const scale = function(i32 value, i32 factor = 2) i32 {
-    return value * factor
+    return(value * factor)
 }
 const doubled = scale(21)                 // 42
 
-// The result of a call can be the argument of another call. A call has parentheses, unless it has one simple operand
-// (double 5, double base, double sum(xs)) or only a block (timed { }). A name with nothing after it is the function itself.
+// The result of a call can be the argument of another call. A call has parentheses, unless its one argument is a block
+// (timed { }). A name with nothing after it is the function itself.
 const double = function(i32 n) i32 {
-    return n * 2
+    return(n * 2)
 }
 const sum = function(Array<i32> numbers) i32 {
     let result = 0
     for (numbers) |n| { result = result + n }
-    return result
+    return(result)
 }
 const nested = double(sum({1, 3, 4, 3}))     // 22
-const nested2 = double sum {1, 3, 4, 3}      // 22, the argument is a name with a block, which is a call: double(sum({1, 3, 4, 3}))
+const nested2 = double(sum {1, 3, 4, 3})     // 22, sum with the block as its one argument: sum({1, 3, 4, 3})
 const five = double(5)                     // 10, a written-out value keeps its parentheses
 
 // A callback is an ordinary parameter with a function type, written like a function head: function(i32) i32.
 // The caller can pass a function by name, or write a block after the parentheses.
 // |n| names the block's parameters, and return inside a block gives the value back.
 const apply = function(i32 value, function(i32) i32 transform) i32 {
-    return transform(value)
+    return(transform(value))
 }
-const r1 = apply(4) |n| { return n * 3 }  // 12
+const r1 = apply(4) |n| { return(n * 3) }  // 12
 
 // The block is the LAST argument written in place, and the type of the last parameter says what it is: a function body
 // for a callback, the values of an Array, or one name = value line per field for a struct (04-functions section 16).
@@ -186,7 +186,7 @@ const Column = struct {
     i32 size
 }
 const table = function(String name, Column column) String {
-    return name
+    return(name)
 }
 const users = table("users") {
     name = "id"
@@ -195,7 +195,7 @@ const users = table("users") {
 const tally = function(String title, Array<i32> numbers) i32 {
     let total = 0
     for (numbers) |n| { total = total + n }
-    return total
+    return(total)
 }
 const scores = tally("scores") { 4, 8, 15 }   // 27
 
@@ -244,7 +244,7 @@ let left = 3
 while (left > 0) { left = left - 1 }
 loop {
     left = left + 1
-    if (left >= 3) { break }                       // continue skips to the next pass
+    if (left >= 3) { break() }                       // continue skips to the next pass
 }
 
 
@@ -287,8 +287,8 @@ const separate = shared1.clone()          // a separate List
 // A normal failure is part of the return type: Optional<T> (a value or nothing) or Result<T, E> (a value or a reason).
 // Both are read with match. There is no null.
 const divide = function(i32 top, i32 bottom) Result<i32, String> {
-    if (bottom == 0) { return Result.Err("divide by zero") }
-    return Result.Ok(top / bottom)
+    if (bottom == 0) { return(Result.Err("divide by zero")) }
+    return(Result.Ok(top / bottom))
 }
 let quotient = 0
 match (divide(10, 2)) {
@@ -317,12 +317,12 @@ const pages = Map<String, BindingInfo>()
 const route = attribute(String path) |target, path| {   // build hook: the block names target and each parameter
     pages.set(path, target)
 } call |target, args, next| {                            // call hook: target, the arguments of the call, and next
-    return next(args)
+    return(next(args))
 }
 [page("/")]
 [route("/home")]
 const home = function() String {
-    return "welcome"
+    return("welcome")
 }
 const home_path = attributes_of(home, "page").get(0).arguments.get(0).as<String>().unwrap()   // "/"
 
@@ -333,7 +333,7 @@ const Vec = struct {
 }
 [operator(Op.Add)]
 const add_vec = function(Vec a, Vec b) Vec {
-    return Vec(x = a.x + b.x, y = a.y + b.y)
+    return(Vec(x = a.x + b.x, y = a.y + b.y))
 }
 const sum_vec = Vec(x = 1.0, y = 0.0) + Vec(x = 0.0, y = 2.0)
 
@@ -364,13 +364,13 @@ const Student = class {
     i32 _marks = 12
 
     const speak = method() String {
-        return this.name
+        return(this.name)
     } method(String lang) String {            // a second version of speak, chosen by the arguments
-        return String.join(this.name, lang)
+        return(String.join(this.name, lang))
     }
 
     const marks = get {                       // read like a field: sam.marks
-        return this._marks
+        return(this._marks)
     } set |value| {                           // written like a field: sam.marks = 15
         this._marks = value
     }

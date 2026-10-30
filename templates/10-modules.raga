@@ -23,10 +23,10 @@
 //       f64 y
 //   }
 //   const circle_area = function(f64 radius) f64 {
-//       return pi * radius * radius
+//       return(pi * radius * radius)
 //   }
 //   const square = function(f64 side) f64 {      // private: not in the export call
-//       return side * side
+//       return(side * side)
 //   }
 //   export { pi, Point, circle_area }
 //   ----------------------------------------
@@ -116,7 +116,7 @@ const corner_area = area_of(corner.x)          // 3.14159
 //   const Pt = shapes.Point                      // a new name for an imported type
 //   const pi = shapes.pi                         // taken as it is
 //   const square = function(f64 side) f64 {      // and a name of its own
-//       return side * side
+//       return(side * side)
 //   }
 //   export { area_of_circle, Pt, pi, square }       // the file shares what it took and what it declared
 //   ----------------------------------------
@@ -143,7 +143,7 @@ const corner_area = area_of(corner.x)          // 3.14159
 //
 //   ---- raga.project ----                               ---- libraries/greeting.raga ----
 //   // an optional file                                  const hello = function(String name) String {
-//   shapes_lib = "./geometry/shapes"                         return String.format("hello %s", name)
+//   shapes_lib = "./geometry/shapes"                         return(String.format("hello %s", name))
 //                                                        }
 //                                                        export { hello }
 const greeting = import("greeting")             // found in libraries/greeting.raga

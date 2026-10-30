@@ -272,7 +272,12 @@ impl Checker {
     }
 
     /// `return` and `return value`.
-    pub(super) fn return_statement(&mut self, call: &Expr, args: &[Arg]) {
+    pub(super) fn return_statement(
+        &mut self,
+        call: &Expr,
+        args: &[Arg],
+        trailer: Option<&Trailer>,
+    ) {
         let Some(declared) = self.fns.last().map(|ctx| ctx.declared.clone()) else {
             self.error(call.span, "`return` belongs to functions only");
             self.check_arguments(args);
@@ -283,6 +288,19 @@ impl Checker {
                 call.span,
                 "`return` in a finally block is not allowed: it would hide the error or the value being returned",
             );
+        }
+        if let Some(trailer) = trailer {
+            // `return |x| { }` and `return { 1, 2 }`: the block is the value, and the declared type says what it is
+            let Some(ret) = declared.as_ref().filter(|ret| **ret != Ty::Void) else {
+                self.error(
+                    call.span,
+                    "a block after `return` needs the function to declare the type it gives back",
+                );
+                self.scoped_statements(&trailer.body);
+                return;
+            };
+            self.block_argument("return", ret, trailer, &[], &mut HashMap::new());
+            return;
         }
         let (ty, span) = match args {
             [] => (Ty::Void, call.span),
@@ -615,11 +633,9 @@ impl Checker {
     ///
     /// - A place that wants a function gets the function itself. A generic function takes its type arguments from the
     ///   type the place wants.
-    /// - A function with no parameters is called by its bare name, `echo`.
-    /// - A function with parameters is not a call without arguments, so the name is the function.
+    /// - A name is never a call: `echo` is the function, `echo()` calls it.
     pub(super) fn function_name(
         &mut self,
-        expr: &Expr,
         name: &ast::Ident,
         f: FnTy,
         expected: Option<&Ty>,
@@ -647,11 +663,7 @@ impl Checker {
             );
             return Ty::Error;
         }
-        if matches!(expected, Some(Ty::Function(_))) || !f.params.is_empty() {
-            return Ty::Function(f);
-        }
-        self.bare_calls.insert(expr.id);
-        (*f.ret).clone()
+        Ty::Function(f)
     }
 
     /// `identity_of<i32>`: a generic function with its type arguments filled in.

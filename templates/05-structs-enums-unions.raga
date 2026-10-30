@@ -333,9 +333,9 @@ const stream = [t1, t2, t3, Token.End]     // List<Token>: one list holds every 
 // A variant with no data needs no |name|.
 const area = function(Shape s) f64 {
     match (s) {
-        case (Circle) |c| { return 3.14 * c.radius * c.radius }
-        case (Rect)   |r| { return r.w * r.h }
-        case (Empty)      { return 0.0 }
+        case (Circle) |c| { return(3.14 * c.radius * c.radius) }
+        case (Rect)   |r| { return(r.w * r.h) }
+        case (Empty)      { return(0.0) }
     }
 }
 const a1 = area(s1)                       // 12.56
@@ -346,17 +346,17 @@ const a2 = area(s2)                       // 12.0
 
 // Every name in a match must be declared too: the subject, and the |name| of a case inside its own case.
 // match (ghost)                          // ERROR: ghost is not declared
-//     case (Circle) |c| { return c.radius }
-// case (Circle) |c| { return 1.0 }       // ERROR in a later case: c exists only inside its own case
-// return radius                          // ERROR: radius is a field of c, it is not a variable on its own
+//     case (Circle) |c| { return(c.radius) }
+// case (Circle) |c| { return(1.0) }       // ERROR in a later case: c exists only inside its own case
+// return(radius)                        // ERROR: radius is a field of c, it is not a variable on its own
 
 // The same with the Token from section 4, each case binds the data of its own variant.
 const kind = function(Token t) i32 {
     match (t) {
-        case (Number) |n| { return 1 }    // n.value is f64
-        case (Word)   |w| { return 2 }    // w.text is String
-        case (Symbol) |s| { return 3 }    // s.ch is char
-        case (End)        { return 4 }
+        case (Number) |n| { return(1) }    // n.value is f64
+        case (Word)   |w| { return(2) }    // w.text is String
+        case (Symbol) |s| { return(3) }    // s.ch is char
+        case (End)        { return(4) }
     }
 }
 const k2 = kind(t2)                       // 2, t2 is a Word
@@ -364,26 +364,26 @@ const k2 = kind(t2)                       // 2, t2 is a Word
 // Variants named from outside match by the same name.
 const sides = function(Figure f) i32 {
     match (f) {
-        case (Square)   |q| { return 4 }
-        case (Triangle) |t| { return 3 }
-        case (Dot)          { return 0 }
+        case (Square)   |q| { return(4) }
+        case (Triangle) |t| { return(3) }
+        case (Dot)          { return(0) }
     }
 }
 
 // An enum works the same way, there is nothing to bind.
 const hex = function(Color c) u32 {
     match (c) {
-        case (Red)   { return 0xFF0000 }
-        case (Green) { return 0x00FF00 }
-        case (Blue)  { return 0x0000FF }
+        case (Red)   { return(0xFF0000) }
+        case (Green) { return(0x00FF00) }
+        case (Blue)  { return(0x0000FF) }
     }
 }
 
 // default catches every case not listed.
 const is_red = function(Color c) bool {
     match (c) {
-        case (Red) { return true }
-        default    { return false }
+        case (Red) { return(true) }
+        default    { return(false) }
     }
 }
 
@@ -551,8 +551,8 @@ Optional<String> missing = Optional.None  // None carries no data, the declared 
 
 const shown = function(Optional<i32> o) i32 {
     match (o) {
-        case (Some) |s| { return s.value }
-        case (None)     { return 0 }
+        case (Some) |s| { return(s.value) }
+        case (None)     { return(0) }
     }
 }
 const sv = shown(found)                   // 5
@@ -563,8 +563,8 @@ Result<i32, String> fail = Result.Err("not a number")
 
 const outcome = function(Result<i32, String> r) i32 {
     match (r) {
-        case (Ok)  |ok|  { return ok.value }
-        case (Err) |err| { return -1 }
+        case (Ok)  |ok|  { return(ok.value) }
+        case (Err) |err| { return(-1) }
     }
 }
 const ov = outcome(good)                  // 1
@@ -595,7 +595,7 @@ const Counter = struct {
     }
 
     const get = function() i32 {                           // the type after the parameters is the return type
-        return this.value
+        return(this.value)
     }
 }
 
@@ -613,10 +613,10 @@ const Vec = struct {
     f64 y
 
     const scaled = function(f64 k) Vec {                   // does not change this, returns a new Vec
-        return Vec(x = this.x * k, y = this.y * k)
+        return(Vec(x = this.x * k, y = this.y * k))
     }
     const sum = function() f64 {
-        return this.x + this.y
+        return(this.x + this.y)
     }
 }
 const v2 = Vec(x = 3.0, y = 4.0).scaled(2.0).scaled(0.5)
@@ -628,7 +628,7 @@ const Tag = struct {
     i32 id
 
     const same_as = function(Tag other) bool {
-        return this.name.equals(other.name)
+        return(this.name.equals(other.name))
     }
 }
 const tags_equal = Tag(name = "x", id = 1).same_as(Tag(name = "x", id = 2))   // true
@@ -638,7 +638,7 @@ const Holder = struct<T> {
     T value
 
     const get = function() T {
-        return this.value
+        return(this.value)
     }
     const set = function(T v) {
         this.value = v
@@ -655,8 +655,8 @@ const Light = enum {
     const On = 1
     const is_on = function() bool {
         match (this) {
-            case (On) { return true }
-            default   { return false }
+            case (On) { return(true) }
+            default   { return(false) }
         }
     }
 }
@@ -690,8 +690,8 @@ const Task = struct {
 
     const is_done = function() bool {
         match (this.progress) {
-            case (Done) |d| { return true }
-            default         { return false }
+            case (Done) |d| { return(true) }
+            default         { return(false) }
         }
     }
 }
@@ -740,27 +740,27 @@ const AfterWhen = struct {
 
     // Runs its block when nothing ran before and its condition holds. It gives AfterWhen again, so or_when repeats.
     const or_when = function(bool condition, function() body) AfterWhen {
-        if (this.taken) { return this }
+        if (this.taken) { return(this) }
         if (condition) {
             body()
-            return AfterWhen(taken = true)
+            return(AfterWhen(taken = true))
         }
-        return this
+        return(this)
     }
 
     // Runs its block when nothing ran before. It gives Closed, so nothing can follow it.
     const otherwise = function(function() body) Closed {
         if (!this.taken) { body() }
-        return Closed()
+        return(Closed())
     }
 }
 
 const when = function(bool condition, function() body) AfterWhen {
     if (condition) {
         body()
-        return AfterWhen(taken = true)
+        return(AfterWhen(taken = true))
     }
-    return AfterWhen(taken = false)
+    return(AfterWhen(taken = false))
 }
 
 let weather = ""
@@ -792,7 +792,7 @@ when(temperature > 30) {
 
 // A stand-in for a real request: it gives the body, or a reason.
 const download = function(String url) Result<String, String> {
-    return Result.Ok(String.join("body of ", url))
+    return(Result.Ok(String.join("body of ", url)))
 }
 
 const AfterThen = struct {                      // after then: only on_error may follow
@@ -803,7 +803,7 @@ const AfterThen = struct {                      // after then: only on_error may
             case (Ok)  |ok|  { }
             case (Err) |bad| { handler(bad.reason) }
         }
-        return Closed()
+        return(Closed())
     }
 }
 
@@ -816,7 +816,7 @@ const AfterFetch = struct {                     // after fetch: then or on_error
             case (Ok)  |ok|  { handler(ok.value) }
             case (Err) |bad| { }
         }
-        return AfterThen(result = this.result)
+        return(AfterThen(result = this.result))
     }
 
     // Runs its block with the reason when the request failed. It ends the chain.
@@ -825,12 +825,12 @@ const AfterFetch = struct {                     // after fetch: then or on_error
             case (Ok)  |ok|  { }
             case (Err) |bad| { handler(bad.reason) }
         }
-        return Closed()
+        return(Closed())
     }
 }
 
 const fetch = function(String url) AfterFetch {
-    return AfterFetch(result = download(url))
+    return(AfterFetch(result = download(url)))
 }
 
 let fetched = ""
@@ -859,7 +859,7 @@ fetch("/items") then |body| {
 const AfterHandled = struct {                   // after on_error: only cleanup may follow
     const cleanup = function(function() work) Closed {
         work()                                  // always runs
-        return Closed()
+        return(Closed())
     }
 }
 
@@ -871,12 +871,12 @@ const AfterGuard = struct {                     // after guard: on_error or clea
             case (Some) |thrown| { handler(thrown.value) }
             case (None)          { }
         }
-        return AfterHandled()
+        return(AfterHandled())
     }
 
     const cleanup = function(function() work) Closed {
         work()
-        return Closed()
+        return(Closed())
     }
 }
 
@@ -884,9 +884,9 @@ const guard = function(function() body) AfterGuard {
     try {
         body()
     } catch |e| {
-        return AfterGuard(failure = Optional.Some(e))
+        return(AfterGuard(failure = Optional.Some(e)))
     }
-    return AfterGuard(failure = Optional.None)
+    return(AfterGuard(failure = Optional.None))
 }
 
 let guard_message = ""
@@ -917,10 +917,10 @@ const Countdown = struct {
     i32 current
 
     const next = function() Optional<i32> {
-        if (this.current <= 0) { return Optional.None }
+        if (this.current <= 0) { return(Optional.None) }
         const value = this.current
         this.current = this.current - 1
-        return Optional.Some(value)
+        return(Optional.Some(value))
     }
 }
 
@@ -930,7 +930,7 @@ let sum_of_steps = 0
 loop {
     match (steps.next()) {
         case (Some) |s| { sum_of_steps = sum_of_steps + s.value }
-        case (None)     { break }
+        case (None)     { break() }
     }
 }
 // sum_of_steps is 6: the values were 3, then 2, then 1
@@ -942,10 +942,10 @@ const ListCursor = struct {
     usize position
 
     const next = function() Optional<i32> {
-        if (this.position >= this.items.len()) { return Optional.None }
+        if (this.position >= this.items.len()) { return(Optional.None) }
         const value = this.items.get(this.position)
         this.position = this.position + 1
-        return Optional.Some(value)
+        return(Optional.Some(value))
     }
 }
 const cursor = ListCursor(items = [10, 20], position = 0)
